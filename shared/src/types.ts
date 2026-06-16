@@ -30,6 +30,12 @@ export interface ShipModule {
   efficiency: number;
 }
 
+export interface ColonistStatsPoint {
+  turn: number;
+  health: number;
+  morale: number;
+}
+
 export interface Colonist {
   id: string;
   name: string;
@@ -44,6 +50,7 @@ export interface Colonist {
   isInfected: boolean;
   infectionTurnsLeft: number;
   isFrozen: boolean;
+  statsHistory: ColonistStatsPoint[];
 }
 
 export interface Resources {
@@ -187,3 +194,28 @@ export interface RoomInfo {
   phase: GamePhase;
   turn: number;
 }
+
+export type BatchActionType = 'batchAssign' | 'batchUnassign';
+
+export interface BatchActionResult {
+  successCount: number;
+  failureCount: number;
+  failures: {
+    colonistId: string;
+    colonistName: string;
+    reason: string;
+  }[];
+}
+
+export interface BatchAssignAction {
+  type: 'batchAssign';
+  moduleId: ModuleType;
+  colonistIds: string[];
+}
+
+export interface BatchUnassignAction {
+  type: 'batchUnassign';
+  colonistIds: string[];
+}
+
+export type BatchPlayerAction = BatchAssignAction | BatchUnassignAction;

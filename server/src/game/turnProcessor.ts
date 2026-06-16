@@ -1,4 +1,4 @@
-import type { GameState, PlayerAction, ModuleType } from '@deep-colony/shared';
+import type { GameState, PlayerAction, ModuleType, BatchPlayerAction, BatchActionResult } from '@deep-colony/shared';
 import { addLog, calculateModuleEfficiency, isModuleInEmergency, getEmergencyModules } from './state';
 import {
   processResourceProduction,
@@ -13,10 +13,26 @@ import { processTravel, checkVictory, checkDefeat } from './travel';
 import { processResearch } from './tech';
 import { MODULE_SKILL_MATCH, AFK_TURNS_BEFORE_TAKEOVER, DISASTER_CHAIN_MODULE_THRESHOLD } from '@deep-colony/shared';
 
+const MAX_HISTORY_POINTS = 20;
+
+export function recordColonistStats(state: GameState): void {
+  for (const colonist of Object.values(state.colonists)) {
+    colonist.statsHistory.push({
+      turn: state.turn,
+      health: colonist.health,
+      morale: colonist.morale,
+    });
+    if (colonist.statsHistory.length > MAX_HISTORY_POINTS) {
+      colonist.statsHistory = colonist.statsHistory.slice(-MAX_HISTORY_POINTS);
+    }
+  }
+}
+
 export function processTurn(state: GameState): void {
   if (state.phase !== 'playing') return;
 
   state.turn++;
+  recordColonistStats(state);
   addLog(state, `=== 第 ${state.turn} 回合开始 ===`, 'info');
 
   if (!checkPowerBalance(state)) {
@@ -258,4 +274,125 @@ export function autoAssignCrew(state: GameState): void {
       if (idx > -1) unassignedColonists.splice(idx, 1);
     }
   }
+}
+
+export function applyBatchPlayerAction(
+  state: GameState,
+  playerId: string,
+  action: BatchPlayerAction
+): BatchActionResult {
+  const result: BatchActionResult = {
+    successCount: 0,
+    failureCount: 0,
+    failures: [],
+  };
+
+  if (action.type === 'batchAssign') {
+    const { moduleId, colonistIds } = action;
+    if (!canPlayerModifyModule(state, playerId, moduleId)) {
+      for (const cid of colonistIds) {
+        const c = state.colonists[cid];
+        result.failureCount++;
+        result.failures.push({
+          colonistId: cid,
+          colonistName: c?.name || '未知',
+          reason: '无权限操作该模块',
+        });
+      }
+      return result;
+    }
+
+    const module = state.modules[moduleId];
+    if (!module) {
+      for (const cid of colonistIds) {
+        const c = state.colonists[cid];
+        result.failureCount++;
+        result.failures.push({
+          colonistId: cid,
+          colonistName: c?.name || '未知',
+          reason: '模块不存在',
+        });
+      }
+      return result;
+    }
+
+    for (const cid of colonistIds) {
+      const colonist = state.colonists[cid];
+      if (!colonist) {
+        result.failureCount++;
+        result.failures.push({ colonistId: cid, colonistName: '未知', reason: '殖民者不存在' });
+        continue;
+      }
+      if (colonist.health <= 0) {
+        result.failureCount++;
+        result.failures.push({ colonistId: cid, colonistName: colonist.name, reason: '已死亡' });
+        continue;
+      }
+      if (colonist.isMutineer) {
+        result.failureCount++;
+        result.failures.push({ colonistId: cid, colonistName: colonist.name, reason: '叛变中' });
+        continue;
+      }
+      if (colonist.isFrozen) {
+        result.failureCount++;
+        result.failures.push({ colonistId: cid, colonistName: colonist.name, reason: '冷冻中' });
+        continue;
+      }
+
+      if (colonist.assignedModule) {
+        const oldModule = state.modules[colonist.assignedModule as ModuleType];
+        if (oldModule) {
+          oldModule.crewAssigned = oldModule.crewAssigned.filter(id => id !== colonist.id);
+        }
+      }
+
+      colonist.assignedModule = moduleId;
+      module.crewAssigned.push(colonist.id);
+      result.successCount++;
+    }
+
+    if (result.successCount > 0) {
+      state.players[playerId].lastActionTurn = state.turn;
+    }
+  } else if (action.type === 'batchUnassign') {
+    const { colonistIds } = action;
+
+    for (const cid of colonistIds) {
+      const colonist = state.colonists[cid];
+      if (!colonist || !colonist.assignedModule) {
+        if (colonist) {
+          result.failureCount++;
+          result.failures.push({ colonistId: cid, colonistName: colonist.name, reason: '未分配' });
+        } else {
+          result.failureCount++;
+          result.failures.push({ colonistId: cid, colonistName: '未知', reason: '殖民者不存在' });
+        }
+        continue;
+      }
+
+      const moduleId = colonist.assignedModule as ModuleType;
+      if (!canPlayerModifyModule(state, playerId, moduleId)) {
+        result.failureCount++;
+        result.failures.push({ colonistId: cid, colonistName: colonist.name, reason: '无权限操作该模块' });
+        continue;
+      }
+
+      const module = state.modules[moduleId];
+      if (!module) {
+        result.failureCount++;
+        result.failures.push({ colonistId: cid, colonistName: colonist.name, reason: '模块不存在' });
+        continue;
+      }
+
+      module.crewAssigned = module.crewAssigned.filter(id => id !== colonist.id);
+      colonist.assignedModule = null;
+      result.successCount++;
+    }
+
+    if (result.successCount > 0) {
+      state.players[playerId].lastActionTurn = state.turn;
+    }
+  }
+
+  return result;
 }

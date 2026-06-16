@@ -7,6 +7,10 @@
       </div>
       <div class="header-center">
         <h1>深空殖民地</h1>
+        <div class="nav-tabs">
+          <button class="nav-tab" :class="{ active: true }">飞船总览</button>
+          <button class="nav-tab" @click="goToCrewManagement">👥 殖民者管理</button>
+        </div>
       </div>
       <div class="header-right">
         <button v-if="isHost" class="btn btn-next-turn" @click="nextTurn">
@@ -120,6 +124,10 @@ function goBack() {
   }
 }
 
+function goToCrewManagement() {
+  router.push(`/game/${roomId.value}/crew`);
+}
+
 let refreshInterval: number | null = null;
 
 onMounted(async () => {
@@ -166,6 +174,10 @@ onUnmounted(() => {
 .header-center {
   flex: 1;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
 }
 
 .header-center h1 {
@@ -174,6 +186,36 @@ onUnmounted(() => {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  margin: 0;
+}
+
+.nav-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-primary);
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.nav-tab {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: transparent;
+  transition: all 0.2s;
+}
+
+.nav-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.nav-tab.active {
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+  color: white;
+  font-weight: 500;
 }
 
 .btn-back {

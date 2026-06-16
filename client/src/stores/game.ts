@@ -1,6 +1,12 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { GameState, PlayerAction, RoomInfo } from '@deep-colony/shared';
+import type {
+  GameState,
+  PlayerAction,
+  RoomInfo,
+  BatchPlayerAction,
+  BatchActionResult,
+} from '@deep-colony/shared';
 
 export const useGameStore = defineStore('game', () => {
   const playerId = ref<string>(localStorage.getItem('playerId') || '');
@@ -11,6 +17,16 @@ export const useGameStore = defineStore('game', () => {
   const isConnected = ref(false);
   const ws = ref<WebSocket | null>(null);
   const chatMessages = ref<{ playerId: string; message: string; timestamp: number }[]>([]);
+
+  const notifications = ref<{
+    id: string;
+    type: 'success' | 'error' | 'warning' | 'info';
+    message: string;
+  }[]>([]);
+
+  const pendingBatchAction = ref<BatchPlayerAction | null>(null);
+  const lastBatchResult = ref<BatchActionResult | null>(null);
+  const batchActionCallback = ref<((result: BatchActionResult) => void) | null>(null);
 
   const currentPlayer = computed(() => {
     if (!gameState.value || !playerId.value) return null;
@@ -111,6 +127,77 @@ export const useGameStore = defineStore('game', () => {
     }));
   }
 
+  function pushNotification(type: 'success' | 'error' | 'warning' | 'info', message: string) {
+    const id = Math.random().toString(36).slice(2, 10);
+    notifications.value.push({ id, type, message });
+    setTimeout(() => {
+      const idx = notifications.value.findIndex(n => n.id === id);
+      if (idx > -1) notifications.value.splice(idx, 1);
+    }, 5000);
+  }
+
+  function dismissNotification(id: string) {
+    const idx = notifications.value.findIndex(n => n.id === id);
+    if (idx > -1) notifications.value.splice(idx, 1);
+  }
+
+  async function sendBatchAction(
+    action: BatchPlayerAction,
+    callback?: (result: BatchActionResult) => void
+  ): Promise<BatchActionResult | null> {
+    pendingBatchAction.value = action;
+    if (callback) batchActionCallback.value = callback;
+
+    if (!ws.value || ws.value.readyState !== WebSocket.OPEN) {
+      try {
+        const res = await fetch(`/api/rooms/${currentRoomId.value}/batchAction`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerId: playerId.value, action }),
+        });
+        const data = await res.json();
+        if (data.state) {
+          gameState.value = data.state;
+        }
+        if (data.result) {
+          lastBatchResult.value = data.result;
+          if (batchActionCallback.value) {
+            batchActionCallback.value(data.result);
+            batchActionCallback.value = null;
+          }
+          return data.result;
+        }
+      } catch (e) {
+        console.error('Batch action failed:', e);
+        pushNotification('error', '批量操作请求失败');
+      } finally {
+        pendingBatchAction.value = null;
+      }
+      return null;
+    }
+
+    ws.value.send(JSON.stringify({
+      type: 'batchAction',
+      action,
+    }));
+
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        pendingBatchAction.value = null;
+        resolve(null);
+      }, 10000);
+
+      const origCallback = batchActionCallback.value;
+      batchActionCallback.value = (result) => {
+        clearTimeout(timeout);
+        pendingBatchAction.value = null;
+        if (origCallback) origCallback(result);
+        resolve(result);
+        batchActionCallback.value = null;
+      };
+    });
+  }
+
   async function advanceTurn() {
     const res = await fetch(`/api/rooms/${currentRoomId.value}/turn`, {
       method: 'POST',
@@ -165,6 +252,15 @@ export const useGameStore = defineStore('game', () => {
           gameState.value = data.state;
         }
         break;
+      case 'batchActionResult':
+        if (data.result) {
+          lastBatchResult.value = data.result;
+          if (batchActionCallback.value) {
+            batchActionCallback.value(data.result);
+            batchActionCallback.value = null;
+          }
+        }
+        break;
       case 'chat':
         chatMessages.value.push({
           playerId: data.playerId,
@@ -215,6 +311,9 @@ export const useGameStore = defineStore('game', () => {
     rooms,
     isConnected,
     chatMessages,
+    notifications,
+    pendingBatchAction,
+    lastBatchResult,
     currentPlayer,
     myModules,
     setPlayerInfo,
@@ -224,10 +323,13 @@ export const useGameStore = defineStore('game', () => {
     fetchRoomState,
     startGame,
     sendAction,
+    sendBatchAction,
     advanceTurn,
     connectWebSocket,
     sendChat,
     disconnectWebSocket,
+    pushNotification,
+    dismissNotification,
     $reset,
   };
 });

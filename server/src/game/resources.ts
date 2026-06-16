@@ -264,6 +264,7 @@ export function processPopulationGrowth(state: GameState): void {
         isInfected: false,
         infectionTurnsLeft: 0,
         isFrozen: false,
+        statsHistory: [{ turn: state.turn, health: 100, morale: 80 }],
       };
       state.colonists[newColonist.id] = newColonist;
       addLog(state, `有新殖民者诞生了！`, 'success');

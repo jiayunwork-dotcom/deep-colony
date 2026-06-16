@@ -1,0 +1,449 @@
+<template>
+  <div
+    class="module-slot-card"
+    :class="{
+      manageable: isManageable,
+      'drag-over': dragState.isOver,
+      'drag-over-valid': dragState.isOver && dragState.canDrop,
+      'drag-over-invalid': dragState.isOver && !dragState.canDrop,
+      'understaffed': module.crewAssigned.length < module.crewRequired,
+      'full': module.crewAssigned.length >= module.crewRequired,
+    }"
+    @dragover="onDragOver"
+    @dragleave="onDragLeave"
+    @drop="onDrop"
+  >
+    <div class="slot-header">
+      <div class="slot-title">
+        <span v-if="isManageable" class="managed-dot" title="你管理此模块">🔑</span>
+        <span class="slot-name">{{ module.name }}</span>
+      </div>
+      <div class="crew-count" :class="crewCountClass">
+        {{ module.crewAssigned.length }}/{{ module.crewRequired }}
+      </div>
+    </div>
+
+    <div class="slot-match-info" v-if="matchSkillName">
+      <span class="match-label">匹配技能:</span>
+      <span class="match-skill">{{ matchSkillName }}</span>
+    </div>
+
+    <div class="slot-crew-list" :class="{ 'is-empty': assignedCrew.length === 0 }">
+      <div
+        v-for="c in assignedCrew"
+        :key="c.id"
+        class="crew-chip"
+        :class="{
+          infected: c.isInfected,
+          mutineer: c.isMutineer,
+          frozen: c.isFrozen
+        }"
+        draggable="true"
+        @dragstart="onCrewDragStart($event, c)"
+        @dragend="onCrewDragEnd"
+        :title="`${c.name} - ${formatMatchEfficiency(c)}`"
+      >
+        <div class="chip-avatar">
+          {{ c.name.slice(0, 1) }}
+        </div>
+        <span class="chip-name">{{ c.name.slice(0, 4) }}</span>
+        <span class="chip-efficiency" :class="getEfficiencyClass(c)">
+          {{ formatEfficiencyShort(c) }}
+        </span>
+      </div>
+      <div v-if="assignedCrew.length === 0" class="empty-hint">
+        拖入殖民者进行分配
+      </div>
+    </div>
+
+    <transition name="fade">
+      <div
+        v-if="dragState.isOver && hoveredColonist"
+        class="slot-match-preview"
+        :class="{ good: dragState.canDrop, bad: !dragState.canDrop || !hasPermission }"
+      >
+        <template v-if="!hasPermission">
+          <span class="preview-icon">🔒</span>
+          <span class="preview-text">无权限操作该模块</span>
+        </template>
+        <template v-else-if="!isColonistEligible(hoveredColonist)">
+          <span class="preview-icon">⚠️</span>
+          <span class="preview-text">
+            无法分配：{{ getIneligibilityReason(hoveredColonist) }}
+          </span>
+        </template>
+        <template v-else>
+          <span class="preview-icon">{{ isGoodMatch(hoveredColonist) ? '✅' : '⚠️' }}</span>
+          <span class="preview-match">{{ matchSkillName }}
+            <span class="preview-efficiency" :class="isGoodMatch(hoveredColonist) ? 'good' : 'bad'">
+              {{ formatMatchEfficiency(hoveredColonist) }}
+            </span>
+          </span>
+          <span class="preview-text">
+            {{ isGoodMatch(hoveredColonist) ? '技能匹配良好' : '非技能岗位，效率偏低' }}
+          </span>
+        </template>
+      </div>
+    </transition>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, reactive } from 'vue';
+import type { ShipModule, Colonist, SkillType, ModuleType } from '@deep-colony/shared';
+import {
+  MODULE_SKILL_MATCH,
+  MODULE_NAMES,
+  SKILL_NAMES,
+  SKILL_EFFICIENCY,
+  NON_SKILL_EFFICIENCY,
+} from '@deep-colony/shared';
+
+const props = defineProps<{
+  module: ShipModule;
+  colonists: Record<string, Colonist>;
+  isManageable: boolean;
+  hoveredColonist: Colonist | null;
+}>();
+
+const emit = defineEmits<{
+  (e: 'assign', colonist: Colonist): void;
+  (e: 'crewDragStart', colonist: Colonist, event: DragEvent): void;
+  (e: 'crewDragEnd', event: DragEvent): void;
+  (e: 'dragOverChange', isOver: boolean): void;
+}>();
+
+const dragState = reactive({
+  isOver: false,
+  canDrop: false,
+});
+
+const hasPermission = computed(() => props.isManageable);
+
+const matchSkill = computed<SkillType>(() => MODULE_SKILL_MATCH[props.module.id]);
+const matchSkillName = computed(() => SKILL_NAMES[matchSkill.value]);
+
+const assignedCrew = computed<Colonist[]>(() => {
+  return props.module.crewAssigned
+    .map(id => props.colonists[id])
+    .filter(Boolean) as Colonist[];
+});
+
+const crewCountClass = computed(() => {
+  const ratio = props.module.crewAssigned.length / Math.max(1, props.module.crewRequired);
+  if (ratio >= 1) return 'full';
+  if (ratio >= 0.5) return 'partial';
+  return 'low';
+});
+
+function getSkillEfficiency(c: Colonist): number {
+  const skillLvl = c.skills[matchSkill.value];
+  if (skillLvl > 0) {
+    return SKILL_EFFICIENCY[matchSkill.value] * (0.8 + skillLvl * 0.1);
+  }
+  return NON_SKILL_EFFICIENCY;
+}
+
+function isGoodMatch(c: Colonist): boolean {
+  return c.skills[matchSkill.value] > 0;
+}
+
+function formatMatchEfficiency(c: Colonist): string {
+  const e = getSkillEfficiency(c);
+  return `x${e.toFixed(2)}`;
+}
+
+function formatEfficiencyShort(c: Colonist): string {
+  const e = getSkillEfficiency(c);
+  return `×${e.toFixed(1)}`;
+}
+
+function getEfficiencyClass(c: Colonist): string {
+  return isGoodMatch(c) ? 'good' : 'bad';
+}
+
+function isColonistEligible(c: Colonist): boolean {
+  if (c.health <= 0) return false;
+  if (c.isMutineer) return false;
+  if (c.isFrozen) return false;
+  return true;
+}
+
+function getIneligibilityReason(c: Colonist): string {
+  if (c.health <= 0) return '已死亡';
+  if (c.isMutineer) return '叛变中';
+  if (c.isFrozen) return '冷冻中';
+  return '无法分配';
+}
+
+function onDragOver(e: DragEvent) {
+  if (!e.dataTransfer) return;
+  e.preventDefault();
+  dragState.isOver = true;
+  dragState.canDrop = !!(props.hoveredColonist && props.isManageable && isColonistEligible(props.hoveredColonist));
+  e.dataTransfer.dropEffect = dragState.canDrop ? 'move' : 'none';
+  emit('dragOverChange', true);
+}
+
+function onDragLeave(e: DragEvent) {
+  const target = e.currentTarget as HTMLElement;
+  const toEl = e.relatedTarget as HTMLElement | null;
+  if (toEl && target.contains(toEl)) return;
+  dragState.isOver = false;
+  dragState.canDrop = false;
+  emit('dragOverChange', false);
+}
+
+function onDrop(e: DragEvent) {
+  if (!e.dataTransfer) return;
+  e.preventDefault();
+  dragState.isOver = false;
+  dragState.canDrop = false;
+  emit('dragOverChange', false);
+  if (!props.isManageable) return;
+  if (!props.hoveredColonist) return;
+  if (!isColonistEligible(props.hoveredColonist)) return;
+  emit('assign', props.hoveredColonist);
+}
+
+function onCrewDragStart(e: DragEvent, c: Colonist) {
+  emit('crewDragStart', c, e);
+}
+function onCrewDragEnd(e: DragEvent) {
+  emit('crewDragEnd', e);
+}
+</script>
+
+<style scoped>
+.module-slot-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 10px;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+  min-height: 160px;
+}
+
+.module-slot-card.manageable {
+  border-color: rgba(0, 212, 255, 0.4);
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.08);
+}
+
+.module-slot-card.understaffed {
+  border-color: rgba(255, 204, 0, 0.3);
+}
+
+.module-slot-card.drag-over {
+  transform: translateY(-1px);
+}
+.module-slot-card.drag-over-valid {
+  border-color: var(--accent-green);
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.25), 0 0 18px rgba(0, 255, 136, 0.25);
+  background: rgba(0, 255, 136, 0.06);
+}
+.module-slot-card.drag-over-invalid {
+  border-color: var(--accent-red);
+  box-shadow: 0 0 0 2px rgba(255, 68, 102, 0.25), 0 0 18px rgba(255, 68, 102, 0.2);
+  background: rgba(255, 68, 102, 0.05);
+}
+
+.slot-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.slot-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.managed-dot {
+  font-size: 13px;
+  filter: drop-shadow(0 0 3px rgba(0, 212, 255, 0.6));
+}
+
+.slot-name {
+  line-height: 1;
+}
+
+.crew-count {
+  padding: 3px 9px;
+  background: var(--bg-primary);
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--border-color);
+}
+.crew-count.low { color: var(--accent-red); border-color: rgba(255, 68, 102, 0.4); }
+.crew-count.partial { color: var(--accent-yellow); border-color: rgba(255, 204, 0, 0.4); }
+.crew-count.full { color: var(--accent-green); border-color: rgba(0, 255, 136, 0.4); }
+
+.slot-match-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  background: rgba(74, 158, 255, 0.08);
+  border-radius: 6px;
+  border: 1px dashed rgba(74, 158, 255, 0.25);
+}
+.match-label {
+  color: var(--text-muted);
+}
+.match-skill {
+  color: var(--accent-blue);
+  font-weight: 600;
+}
+
+.slot-crew-list {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-content: flex-start;
+  padding: 6px;
+  background: var(--bg-primary);
+  border-radius: 6px;
+  border: 1px dashed rgba(42, 54, 84, 0.8);
+  min-height: 64px;
+}
+.slot-crew-list.is-empty {
+  justify-content: center;
+  align-items: center;
+}
+.empty-hint {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: center;
+  opacity: 0.7;
+}
+
+.crew-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px 3px 3px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  font-size: 11px;
+  cursor: grab;
+  transition: all 0.15s;
+  user-select: none;
+}
+.crew-chip:hover {
+  border-color: var(--accent-cyan);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 212, 255, 0.2);
+}
+.crew-chip:active { cursor: grabbing; }
+
+.crew-chip.infected {
+  border-color: rgba(255, 68, 102, 0.5);
+  background: rgba(255, 68, 102, 0.08);
+}
+.crew-chip.mutineer {
+  border-color: rgba(255, 204, 0, 0.5);
+  background: rgba(255, 204, 0, 0.08);
+}
+.crew-chip.frozen {
+  border-color: rgba(0, 212, 255, 0.5);
+  background: rgba(0, 212, 255, 0.08);
+}
+
+.chip-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chip-name {
+  color: var(--text-primary);
+  font-weight: 500;
+  max-width: 44px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chip-efficiency {
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.chip-efficiency.good { color: var(--accent-green); }
+.chip-efficiency.bad { color: var(--accent-orange); }
+
+.slot-match-preview {
+  position: absolute;
+  inset: auto 8px 8px 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  z-index: 5;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+.slot-match-preview.good {
+  border-color: rgba(0, 255, 136, 0.5);
+  background: rgba(0, 255, 136, 0.08);
+}
+.slot-match-preview.bad {
+  border-color: rgba(255, 68, 102, 0.5);
+  background: rgba(255, 68, 102, 0.08);
+}
+.preview-icon {
+  font-size: 14px;
+}
+.preview-match {
+  font-size: 12px;
+  color: var(--text-primary);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.preview-efficiency {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.preview-efficiency.good { color: var(--accent-green); }
+.preview-efficiency.bad { color: var(--accent-red); }
+.preview-text {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: all 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
+}
+</style>

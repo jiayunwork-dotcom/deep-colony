@@ -75,13 +75,15 @@ export function createModule(id: ModuleType, crewRequired: number): ShipModule {
   };
 }
 
-export function createColonist(): Colonist {
+export function createColonist(turn: number = 0): Colonist {
+  const health = randomInt(70, 100);
+  const morale = randomInt(60, 90);
   return {
     id: uuidv4(),
     name: randomName(),
-    health: randomInt(70, 100),
+    health,
     maxHealth: 100,
-    morale: randomInt(60, 90),
+    morale,
     age: randomInt(20, 50),
     skills: randomSkills(),
     assignedModule: null,
@@ -90,6 +92,7 @@ export function createColonist(): Colonist {
     isInfected: false,
     infectionTurnsLeft: 0,
     isFrozen: false,
+    statsHistory: [{ turn, health, morale }],
   };
 }
 

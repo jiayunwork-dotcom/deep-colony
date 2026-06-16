@@ -6,7 +6,9 @@ import {
   applyPlayerAction,
   autoAssignCrew,
   updateModuleEfficiencies,
+  applyBatchPlayerAction,
 } from '../game';
+import type { BatchPlayerAction, BatchActionResult } from '@deep-colony/shared';
 import { v4 as uuidv4 } from 'uuid';
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
@@ -234,4 +236,24 @@ export async function listRooms(): Promise<{ roomId: string; hostName: string; p
   }
 
   return rooms;
+}
+
+export async function handleBatchPlayerAction(
+  roomId: string,
+  playerId: string,
+  action: BatchPlayerAction
+): Promise<{ success: boolean; state: GameState | null; result?: BatchActionResult; error?: string }> {
+  const state = await getGameState(roomId);
+  if (!state) return { success: false, state: null, error: '房间不存在' };
+
+  if (state.phase !== 'playing') {
+    return { success: false, state: null, error: '游戏未进行中' };
+  }
+
+  const result = applyBatchPlayerAction(state, playerId, action);
+
+  updateModuleEfficiencies(state);
+  await saveGameState(roomId, state);
+
+  return { success: true, state, result };
 }

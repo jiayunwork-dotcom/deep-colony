@@ -11,8 +11,9 @@ import {
   leaveRoom,
   listRooms,
   getPlayerRoom,
+  handleBatchPlayerAction,
 } from './room/roomManager';
-import type { PlayerAction } from '@deep-colony/shared';
+import type { PlayerAction, BatchPlayerAction } from '@deep-colony/shared';
 
 const PORT = parseInt(process.env.PORT || '3001');
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
@@ -139,6 +140,24 @@ fastify.post('/api/rooms/:roomId/action', async (request, reply) => {
   return { success: true, state: result.state };
 });
 
+fastify.post('/api/rooms/:roomId/batchAction', async (request, reply) => {
+  const { roomId } = request.params as { roomId: string };
+  const { playerId, action } = request.body as { playerId: string; action: BatchPlayerAction };
+
+  const result = await handleBatchPlayerAction(roomId.toUpperCase(), playerId, action);
+  if (!result.success) {
+    reply.code(400);
+    return { error: result.error };
+  }
+
+  broadcastToRoom(roomId.toUpperCase(), {
+    type: 'stateUpdated',
+    state: result.state,
+  });
+
+  return { success: true, state: result.state, result: result.result };
+});
+
 fastify.post('/api/rooms/:roomId/turn', async (request, reply) => {
   const { roomId } = request.params as { roomId: string };
   const { playerId } = request.body as { playerId: string };
@@ -196,6 +215,19 @@ fastify.register(async (fastify) => {
                 type: 'stateUpdated',
                 state: result.state,
               });
+            }
+            break;
+          case 'batchAction':
+            const batchResult = await handleBatchPlayerAction(upperRoomId, playerId, data.action);
+            if (batchResult.success && batchResult.state) {
+              broadcastToRoom(upperRoomId, {
+                type: 'stateUpdated',
+                state: batchResult.state,
+              });
+              connection.socket.send(JSON.stringify({
+                type: 'batchActionResult',
+                result: batchResult.result,
+              }));
             }
             break;
           case 'chat':
