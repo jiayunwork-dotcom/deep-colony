@@ -33,8 +33,20 @@
                 <ValueBar :value="colonist.morale" />
               </div>
               <div class="stat-box">
+                <div class="stat-box-label">疲劳</div>
+                <ValueBar :value="colonist.fatigue" :max="100" :color-scheme="'fatigue'" />
+              </div>
+            </div>
+            <div class="stat-grid" style="grid-template-columns: 1fr 1fr;">
+              <div class="stat-box">
                 <div class="stat-box-label">年龄</div>
                 <div class="stat-box-value">{{ colonist.age }} <span class="stat-unit">岁</span></div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-box-label">疲劳状态</div>
+                <div class="stat-box-value" :class="fatigueStatusClass">
+                  {{ fatigueStatusText }}
+                </div>
               </div>
             </div>
 
@@ -103,7 +115,7 @@
           </section>
 
           <section class="detail-section">
-            <h3 class="section-title">📈 健康/士气历史变化 (最近20回合)</h3>
+            <h3 class="section-title">📈 健康/士气/疲劳历史变化 (最近20回合)</h3>
             <LineChart :data="colonist.statsHistory" :width="560" :height="180" />
           </section>
 
@@ -170,6 +182,8 @@ const skillAxes: { key: SkillType; label: string }[] = [
 const avatarClass = computed(() => {
   const c = props.colonist;
   if (!c) return 'normal';
+  if (c.isCollapsed) return 'danger';
+  if (c.isOverworked) return 'warning';
   if (c.isFrozen) return 'frozen';
   if (c.isMutineer) return 'danger';
   if (c.isInfected) return 'warning';
@@ -181,10 +195,31 @@ const avatarClass = computed(() => {
 const statusDurationText = computed(() => {
   const c = props.colonist;
   if (!c) return '';
+  if (c.isCollapsed) return `已倒下，正在医疗舱恢复`;
+  if (c.isOverworked) return `过劳状态，效率降低至40%`;
   if (c.isMutineer) return `叛变中，剩余 ${c.mutinyTurnsLeft} 回合`;
   if (c.isInfected) return `感染中，剩余 ${c.infectionTurnsLeft} 回合`;
   if (c.isFrozen) return `冷冻状态`;
   return '';
+});
+
+const fatigueStatusText = computed(() => {
+  const c = props.colonist;
+  if (!c) return '';
+  if (c.isCollapsed) return '💀 已倒下';
+  if (c.isOverworked) return '⚠️ 过劳';
+  if (c.fatigue >= 60) return '😓 疲劳';
+  if (c.fatigue >= 30) return '😊 正常';
+  return '✨ 精力充沛';
+});
+
+const fatigueStatusClass = computed(() => {
+  const c = props.colonist;
+  if (!c) return '';
+  if (c.isCollapsed) return 'danger';
+  if (c.isOverworked) return 'warning';
+  if (c.fatigue >= 60) return 'warning';
+  return 'good';
 });
 
 const currentModule = computed(() => {
@@ -380,6 +415,9 @@ function onAssignChange(e: Event) {
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
 }
+.stat-box-value.good { color: var(--accent-green); }
+.stat-box-value.warning { color: var(--accent-orange); }
+.stat-box-value.danger { color: var(--accent-red); }
 .stat-unit {
   font-size: 12px;
   font-weight: 400;

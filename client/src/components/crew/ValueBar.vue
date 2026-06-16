@@ -19,6 +19,7 @@ import { computed } from 'vue';
 const props = defineProps<{
   value: number;
   max?: number;
+  colorScheme?: 'default' | 'fatigue';
 }>(); 
 
 const percent = computed(() => {
@@ -27,6 +28,14 @@ const percent = computed(() => {
 });
 
 const barClass = computed(() => {
+  const scheme = props.colorScheme || 'default';
+  
+  if (scheme === 'fatigue') {
+    if (percent.value >= 80) return 'danger';
+    if (percent.value >= 50) return 'warning';
+    return 'good';
+  }
+  
   if (percent.value >= 70) return 'good';
   if (percent.value >= 40) return 'warning';
   return 'danger';

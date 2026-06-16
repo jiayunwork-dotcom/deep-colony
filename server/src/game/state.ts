@@ -8,6 +8,7 @@ import type {
   Resources,
   StarMap,
   GameLogEntry,
+  ModuleShiftConfig,
 } from '@deep-colony/shared';
 import {
   MODULE_NAMES,
@@ -22,6 +23,10 @@ import {
   MAX_PLAYERS,
   DURABILITY_WARNING,
   EMERGENCY_DURABILITY_THRESHOLD,
+  FATIGUE_OVERWORK_THRESHOLD,
+  FATIGUE_COLLAPSE_THRESHOLD,
+  OVERWORK_EFFICIENCY_PENALTY,
+  THREESHIFT_TURNS_PER_SHIFT,
 } from '@deep-colony/shared';
 
 const COLONIST_FIRST_NAMES = [
@@ -61,6 +66,17 @@ function randomSkills(): Record<SkillType, number> {
   return skills;
 }
 
+function createDefaultShiftConfig(): ModuleShiftConfig {
+  return {
+    mode: 'continuous',
+    currentShift: 'A',
+    turnsUntilNextShift: THREESHIFT_TURNS_PER_SHIFT,
+    assignments: [],
+    emergencyLevel: 'normal',
+    hasAlarm: false,
+  };
+}
+
 export function createModule(id: ModuleType, crewRequired: number): ShipModule {
   return {
     id,
@@ -72,18 +88,21 @@ export function createModule(id: ModuleType, crewRequired: number): ShipModule {
     crewRequired,
     crewAssigned: [],
     efficiency: 1,
+    shiftConfig: createDefaultShiftConfig(),
   };
 }
 
 export function createColonist(turn: number = 0): Colonist {
   const health = randomInt(70, 100);
   const morale = randomInt(60, 90);
+  const fatigue = 0;
   return {
     id: uuidv4(),
     name: randomName(),
     health,
     maxHealth: 100,
     morale,
+    fatigue,
     age: randomInt(20, 50),
     skills: randomSkills(),
     assignedModule: null,
@@ -92,7 +111,9 @@ export function createColonist(turn: number = 0): Colonist {
     isInfected: false,
     infectionTurnsLeft: 0,
     isFrozen: false,
-    statsHistory: [{ turn, health, morale }],
+    isOverworked: false,
+    isCollapsed: false,
+    statsHistory: [{ turn, health, morale, fatigue }],
   };
 }
 
@@ -168,7 +189,7 @@ export function calculateModuleEfficiency(
 
   const assignedCrew = module.crewAssigned
     .map(id => colonists[id])
-    .filter(c => c && !c.isMutineer && !c.isFrozen && c.health > 0);
+    .filter(c => c && !c.isMutineer && !c.isFrozen && !c.isCollapsed && c.health > 0);
 
   if (module.crewRequired === 0) return durabilityFactor;
 
@@ -176,11 +197,16 @@ export function calculateModuleEfficiency(
   const matchingSkill = MODULE_SKILL_MATCH[module.id];
 
   for (const crew of assignedCrew) {
+    let efficiency = 1;
+    if (crew.isOverworked) {
+      efficiency = OVERWORK_EFFICIENCY_PENALTY;
+    }
+
     const skillLevel = crew.skills[matchingSkill];
     if (skillLevel > 0) {
-      totalSkillBonus += SKILL_EFFICIENCY[matchingSkill] * (0.8 + skillLevel * 0.1);
+      totalSkillBonus += SKILL_EFFICIENCY[matchingSkill] * (0.8 + skillLevel * 0.1) * efficiency;
     } else {
-      totalSkillBonus += NON_SKILL_EFFICIENCY;
+      totalSkillBonus += NON_SKILL_EFFICIENCY * efficiency;
     }
   }
 

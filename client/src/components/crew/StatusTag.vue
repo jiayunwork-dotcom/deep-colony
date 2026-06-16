@@ -15,6 +15,8 @@ const props = defineProps<{
 }>();
 
 const statusClass = computed(() => {
+  if (props.colonist.isCollapsed) return 'collapsed';
+  if (props.colonist.isOverworked) return 'overworked';
   if (props.colonist.isFrozen) return 'frozen';
   if (props.colonist.isMutineer) return 'mutineer';
   if (props.colonist.isInfected) return 'infected';
@@ -22,6 +24,8 @@ const statusClass = computed(() => {
 });
 
 const statusText = computed(() => {
+  if (props.colonist.isCollapsed) return '倒下';
+  if (props.colonist.isOverworked) return '过劳';
   if (props.colonist.isFrozen) return '冷冻中';
   if (props.colonist.isMutineer) return '叛变中';
   if (props.colonist.isInfected) return '感染中';
@@ -96,6 +100,30 @@ const statusTurns = computed(() => {
   box-shadow: 0 0 5px var(--accent-cyan);
 }
 
+.status-tag.overworked {
+  background: rgba(255, 165, 0, 0.1);
+  border-color: rgba(255, 165, 0, 0.4);
+  color: var(--accent-orange);
+  animation: pulse-overwork 2s ease-in-out infinite;
+}
+.status-tag.overworked .status-dot {
+  background: var(--accent-orange);
+  box-shadow: 0 0 6px var(--accent-orange);
+  animation: blink 1s ease-in-out infinite;
+}
+
+.status-tag.collapsed {
+  background: rgba(255, 68, 102, 0.15);
+  border-color: rgba(255, 68, 102, 0.5);
+  color: var(--accent-red);
+  animation: pulse-collapse 1.2s ease-in-out infinite;
+}
+.status-tag.collapsed .status-dot {
+  background: var(--accent-red);
+  box-shadow: 0 0 8px var(--accent-red);
+  animation: blink 0.6s ease-in-out infinite;
+}
+
 .status-turns {
   color: inherit;
   opacity: 0.85;
@@ -109,5 +137,13 @@ const statusTurns = computed(() => {
 @keyframes pulse-bad {
   0%, 100% { background: rgba(255, 68, 102, 0.1); }
   50% { background: rgba(255, 68, 102, 0.2); }
+}
+@keyframes pulse-overwork {
+  0%, 100% { background: rgba(255, 165, 0, 0.1); }
+  50% { background: rgba(255, 165, 0, 0.2); }
+}
+@keyframes pulse-collapse {
+  0%, 100% { background: rgba(255, 68, 102, 0.15); transform: scale(1); }
+  50% { background: rgba(255, 68, 102, 0.3); transform: scale(1.02); }
 }
 </style>

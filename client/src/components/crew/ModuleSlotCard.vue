@@ -23,12 +23,87 @@
       </div>
     </div>
 
+    <div class="shift-config" v-if="isManageable">
+      <select
+        class="shift-mode-select"
+        :value="module.shiftConfig.mode"
+        @change="onShiftModeChange"
+      >
+        <option value="continuous">连续工作</option>
+        <option value="threeShift">三班倒</option>
+        <option value="flexible">弹性排班</option>
+      </select>
+    </div>
+
+    <div class="shift-info" v-if="module.shiftConfig.mode !== 'continuous'">
+      <span class="current-shift" :class="'shift-' + module.shiftConfig.currentShift">
+        当前:{{ module.shiftConfig.currentShift }}班在岗
+      </span>
+      <span v-if="module.shiftConfig.mode === 'threeShift'" class="next-shift-countdown">
+        换班: {{ module.shiftConfig.turnsUntilNextShift }}回合
+      </span>
+      <span v-if="module.shiftConfig.emergencyLevel === 'critical'" class="emergency-badge">
+        ⚠️ 紧急
+      </span>
+    </div>
+
     <div class="slot-match-info" v-if="matchSkillName">
       <span class="match-label">匹配技能:</span>
       <span class="match-skill">{{ matchSkillName }}</span>
     </div>
 
-    <div class="slot-crew-list" :class="{ 'is-empty': assignedCrew.length === 0 }">
+    <div v-if="module.shiftConfig.mode === 'threeShift'" class="three-shift-container">
+      <div
+        v-for="group in ['A', 'B', 'C'] as const"
+        :key="group"
+        class="shift-group"
+        :class="{
+          'active': module.shiftConfig.currentShift === group,
+          'drag-over': shiftDragState[group]?.isOver,
+          'drag-over-valid': shiftDragState[group]?.isOver && shiftDragState[group]?.canDrop,
+        }"
+        @dragover="(e) => onShiftDragOver(e, group)"
+        @dragleave="(e) => onShiftDragLeave(e, group)"
+        @drop="(e) => onShiftDrop(e, group)"
+      >
+        <div class="shift-group-header" :class="'shift-' + group">
+          <span class="shift-group-name">{{ group }}班</span>
+          <span v-if="module.shiftConfig.currentShift === group" class="shift-on-duty">● 在岗</span>
+          <span v-else class="shift-resting">○ 休息</span>
+        </div>
+        <div class="shift-crew-list" :class="{ 'is-empty': getGroupCrew(group).length === 0 }">
+          <div
+            v-for="c in getGroupCrew(group)"
+            :key="c.id"
+            class="crew-chip"
+            :class="{
+              infected: c.isInfected,
+              mutineer: c.isMutineer,
+              frozen: c.isFrozen,
+              overworked: c.isOverworked,
+              collapsed: c.isCollapsed,
+            }"
+            draggable="true"
+            @dragstart="onCrewDragStart($event, c)"
+            @dragend="onCrewDragEnd"
+            :title="`${c.name} - ${formatMatchEfficiency(c)} - 疲劳:${c.fatigue}%`"
+          >
+            <div class="chip-avatar">
+              {{ c.name.slice(0, 1) }}
+            </div>
+            <span class="chip-name">{{ c.name.slice(0, 4) }}</span>
+            <span class="chip-fatigue" :class="getFatigueClass(c)">
+              {{ c.fatigue }}
+            </span>
+          </div>
+          <div v-if="getGroupCrew(group).length === 0" class="empty-hint">
+            拖入分配
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-else class="slot-crew-list" :class="{ 'is-empty': assignedCrew.length === 0 }">
       <div
         v-for="c in assignedCrew"
         :key="c.id"
@@ -36,17 +111,22 @@
         :class="{
           infected: c.isInfected,
           mutineer: c.isMutineer,
-          frozen: c.isFrozen
+          frozen: c.isFrozen,
+          overworked: c.isOverworked,
+          collapsed: c.isCollapsed,
         }"
         draggable="true"
         @dragstart="onCrewDragStart($event, c)"
         @dragend="onCrewDragEnd"
-        :title="`${c.name} - ${formatMatchEfficiency(c)}`"
+        :title="`${c.name} - ${formatMatchEfficiency(c)} - 疲劳:${c.fatigue}%`"
       >
         <div class="chip-avatar">
           {{ c.name.slice(0, 1) }}
         </div>
         <span class="chip-name">{{ c.name.slice(0, 4) }}</span>
+        <span class="chip-fatigue" :class="getFatigueClass(c)">
+          {{ c.fatigue }}
+        </span>
         <span class="chip-efficiency" :class="getEfficiencyClass(c)">
           {{ formatEfficiencyShort(c) }}
         </span>
@@ -90,7 +170,7 @@
 
 <script setup lang="ts">
 import { computed, reactive } from 'vue';
-import type { ShipModule, Colonist, SkillType, ModuleType } from '@deep-colony/shared';
+import type { ShipModule, Colonist, SkillType, ModuleType, ShiftMode, ShiftGroup } from '@deep-colony/shared';
 import {
   MODULE_SKILL_MATCH,
   MODULE_NAMES,
@@ -111,11 +191,21 @@ const emit = defineEmits<{
   (e: 'crewDragStart', colonist: Colonist, event: DragEvent): void;
   (e: 'crewDragEnd', event: DragEvent): void;
   (e: 'dragOverChange', isOver: boolean): void;
+  (e: 'changeShiftMode', moduleId: string, mode: ShiftMode): void;
+  (e: 'reassignShiftGroup', moduleId: string, colonistId: string, group: ShiftGroup): void;
 }>();
 
 const dragState = reactive({
   isOver: false,
   canDrop: false,
+});
+
+type ShiftDragState = Record<ShiftGroup, { isOver: boolean; canDrop: boolean }>;
+
+const shiftDragState = reactive<ShiftDragState>({
+  A: { isOver: false, canDrop: false },
+  B: { isOver: false, canDrop: false },
+  C: { isOver: false, canDrop: false },
 });
 
 const hasPermission = computed(() => props.isManageable);
@@ -135,6 +225,16 @@ const crewCountClass = computed(() => {
   if (ratio >= 0.5) return 'partial';
   return 'low';
 });
+
+function getGroupCrew(group: ShiftGroup): Colonist[] {
+  const assignments = props.module.shiftConfig.assignments;
+  const colonistIds = assignments
+    .filter(a => a.group === group)
+    .map(a => a.colonistId);
+  return colonistIds
+    .map(id => props.colonists[id])
+    .filter(Boolean) as Colonist[];
+}
 
 function getSkillEfficiency(c: Colonist): number {
   const skillLvl = c.skills[matchSkill.value];
@@ -162,10 +262,17 @@ function getEfficiencyClass(c: Colonist): string {
   return isGoodMatch(c) ? 'good' : 'bad';
 }
 
+function getFatigueClass(c: Colonist): string {
+  if (c.fatigue >= 80) return 'danger';
+  if (c.fatigue >= 50) return 'warning';
+  return 'good';
+}
+
 function isColonistEligible(c: Colonist): boolean {
   if (c.health <= 0) return false;
   if (c.isMutineer) return false;
   if (c.isFrozen) return false;
+  if (c.isCollapsed) return false;
   return true;
 }
 
@@ -173,7 +280,47 @@ function getIneligibilityReason(c: Colonist): string {
   if (c.health <= 0) return '已死亡';
   if (c.isMutineer) return '叛变中';
   if (c.isFrozen) return '冷冻中';
+  if (c.isCollapsed) return '已倒下';
   return '无法分配';
+}
+
+function onShiftModeChange(e: Event) {
+  if (!props.isManageable) return;
+  const select = e.target as HTMLSelectElement;
+  const mode = select.value as ShiftMode;
+  emit('changeShiftMode', props.module.id, mode);
+}
+
+function onShiftDragOver(e: DragEvent, group: ShiftGroup) {
+  if (!e.dataTransfer) return;
+  e.preventDefault();
+  shiftDragState[group].isOver = true;
+  shiftDragState[group].canDrop = !!(props.hoveredColonist && props.isManageable && isColonistEligible(props.hoveredColonist));
+  e.dataTransfer.dropEffect = shiftDragState[group].canDrop ? 'move' : 'none';
+}
+
+function onShiftDragLeave(e: DragEvent, group: ShiftGroup) {
+  const target = e.currentTarget as HTMLElement;
+  const toEl = e.relatedTarget as HTMLElement | null;
+  if (toEl && target.contains(toEl)) return;
+  shiftDragState[group].isOver = false;
+  shiftDragState[group].canDrop = false;
+}
+
+function onShiftDrop(e: DragEvent, group: ShiftGroup) {
+  if (!e.dataTransfer) return;
+  e.preventDefault();
+  shiftDragState[group].isOver = false;
+  shiftDragState[group].canDrop = false;
+  if (!props.isManageable) return;
+  if (!props.hoveredColonist) return;
+  if (!isColonistEligible(props.hoveredColonist)) return;
+  
+  if (props.hoveredColonist.assignedModule === props.module.id) {
+    emit('reassignShiftGroup', props.module.id, props.hoveredColonist.id, group);
+  } else {
+    emit('assign', props.hoveredColonist);
+  }
 }
 
 function onDragOver(e: DragEvent) {
@@ -435,6 +582,154 @@ function onCrewDragEnd(e: DragEvent) {
 .preview-text {
   font-size: 11px;
   color: var(--text-secondary);
+}
+
+.chip-fatigue {
+  font-size: 9px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 4px;
+  border-radius: 4px;
+  min-width: 20px;
+  text-align: center;
+}
+.chip-fatigue.good { background: rgba(0, 255, 136, 0.15); color: var(--accent-green); }
+.chip-fatigue.warning { background: rgba(255, 204, 0, 0.15); color: var(--accent-yellow); }
+.chip-fatigue.danger { background: rgba(255, 68, 102, 0.2); color: var(--accent-red); }
+
+.crew-chip.overworked {
+  border-color: rgba(255, 165, 0, 0.5);
+  background: rgba(255, 165, 0, 0.08);
+}
+.crew-chip.collapsed {
+  border-color: rgba(255, 68, 102, 0.6);
+  background: rgba(255, 68, 102, 0.15);
+  opacity: 0.6;
+}
+
+.shift-config {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.shift-mode-select {
+  flex: 1;
+  padding: 6px 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.shift-mode-select:hover {
+  border-color: var(--accent-cyan);
+}
+.shift-mode-select:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+}
+
+.shift-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  background: var(--bg-primary);
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  margin-bottom: 8px;
+  font-size: 11px;
+}
+.current-shift {
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.current-shift.shift-A { background: rgba(74, 158, 255, 0.2); color: var(--accent-blue); }
+.current-shift.shift-B { background: rgba(0, 255, 136, 0.2); color: var(--accent-green); }
+.current-shift.shift-C { background: rgba(255, 165, 0, 0.2); color: var(--accent-orange); }
+.next-shift-countdown {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.emergency-badge {
+  background: rgba(255, 68, 102, 0.15);
+  color: var(--accent-red);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  animation: pulse-emergency 1.2s ease-in-out infinite;
+}
+@keyframes pulse-emergency {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.three-shift-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+.shift-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: var(--bg-primary);
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  transition: all 0.2s;
+  min-height: 60px;
+}
+.shift-group.active {
+  border-color: var(--accent-cyan);
+  background: rgba(0, 212, 255, 0.05);
+}
+.shift-group.drag-over {
+  border-style: dashed;
+  border-width: 2px;
+}
+.shift-group.drag-over-valid {
+  border-color: var(--accent-green);
+  background: rgba(0, 255, 136, 0.08);
+}
+.shift-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+}
+.shift-group-header.shift-A { background: rgba(74, 158, 255, 0.1); color: var(--accent-blue); }
+.shift-group-header.shift-B { background: rgba(0, 255, 136, 0.1); color: var(--accent-green); }
+.shift-group-header.shift-C { background: rgba(255, 165, 0, 0.1); color: var(--accent-orange); }
+.shift-group-name {
+  font-weight: 700;
+}
+.shift-on-duty {
+  color: var(--accent-green);
+  font-size: 10px;
+}
+.shift-resting {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+.shift-crew-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-content: flex-start;
+  min-height: 40px;
+}
+.shift-crew-list.is-empty {
+  justify-content: center;
+  align-items: center;
 }
 
 .fade-enter-active,

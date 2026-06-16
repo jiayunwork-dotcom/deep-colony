@@ -16,6 +16,10 @@
           <stop offset="0%" stop-color="var(--accent-blue)" stop-opacity="0.4" />
           <stop offset="100%" stop-color="var(--accent-blue)" stop-opacity="0" />
         </linearGradient>
+        <linearGradient :id="gradIdFatigue" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--accent-orange)" stop-opacity="0.4" />
+          <stop offset="100%" stop-color="var(--accent-orange)" stop-opacity="0" />
+        </linearGradient>
       </defs>
 
       <g class="grid-lines">
@@ -50,6 +54,9 @@
       <g v-if="moraleArea" class="area-morale">
         <path :d="moraleArea" :fill="`url(#${gradIdMorale})`" />
       </g>
+      <g v-if="fatigueArea" class="area-fatigue">
+        <path :d="fatigueArea" :fill="`url(#${gradIdFatigue})`" />
+      </g>
 
       <polyline
         v-if="healthLine"
@@ -69,12 +76,24 @@
         stroke-linecap="round"
         stroke-linejoin="round"
       />
+      <polyline
+        v-if="fatigueLine"
+        :points="fatigueLine"
+        fill="none"
+        stroke="var(--accent-orange)"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
 
       <g v-for="(p, i) in healthDots" :key="'hd-' + i">
         <circle :cx="p.x" :cy="p.y" r="2.5" fill="var(--accent-green)" />
       </g>
       <g v-for="(p, i) in moraleDots" :key="'md-' + i">
         <circle :cx="p.x" :cy="p.y" r="2.5" fill="var(--accent-blue)" />
+      </g>
+      <g v-for="(p, i) in fatigueDots" :key="'fd-' + i">
+        <circle :cx="p.x" :cy="p.y" r="2.5" fill="var(--accent-orange)" />
       </g>
 
       <g class="x-labels">
@@ -100,6 +119,10 @@
         <span class="legend-dot legend-morale"></span>
         <span>士气</span>
       </div>
+      <div class="legend-item">
+        <span class="legend-dot legend-fatigue"></span>
+        <span>疲劳</span>
+      </div>
     </div>
   </div>
 </template>
@@ -111,6 +134,7 @@ interface DataPoint {
   turn: number;
   health: number;
   morale: number;
+  fatigue?: number;
 }
 
 const props = withDefaults(defineProps<{
@@ -128,6 +152,7 @@ const chartH = computed(() => props.height - padding.top - padding.bottom);
 
 const gradIdHealth = 'grad-health-' + Math.random().toString(36).slice(2, 8);
 const gradIdMorale = 'grad-morale-' + Math.random().toString(36).slice(2, 8);
+const gradIdFatigue = 'grad-fatigue-' + Math.random().toString(36).slice(2, 8);
 
 function getX(frac: number) {
   return padding.left + frac * chartW.value;
@@ -170,11 +195,21 @@ const moraleLine = computed(() => {
   }).join(' ');
 });
 
-function buildArea(key: 'health' | 'morale') {
+const fatigueLine = computed(() => {
+  if (data.value.length < 2) return '';
+  if (!data.value.some(d => d.fatigue !== undefined)) return '';
+  return data.value.map((d, i) => {
+    const frac = i / (data.value.length - 1);
+    return `${getX(frac)},${getY(d.fatigue ?? 0)}`;
+  }).join(' ');
+});
+
+function buildArea(key: 'health' | 'morale' | 'fatigue') {
   if (data.value.length < 2) return '';
   const pts = data.value.map((d, i) => {
     const frac = i / (data.value.length - 1);
-    return `${getX(frac)},${getY(d[key])}`;
+    const val = key === 'fatigue' ? (d[key] ?? 0) : d[key];
+    return `${getX(frac)},${getY(val)}`;
   });
   const firstX = getX(0);
   const lastX = getX(1);
@@ -184,6 +219,10 @@ function buildArea(key: 'health' | 'morale') {
 
 const healthArea = computed(() => buildArea('health'));
 const moraleArea = computed(() => buildArea('morale'));
+const fatigueArea = computed(() => {
+  if (!data.value.some(d => d.fatigue !== undefined)) return '';
+  return buildArea('fatigue');
+});
 
 const healthDots = computed(() => {
   return data.value.map((d, i) => {
@@ -195,6 +234,14 @@ const moraleDots = computed(() => {
   return data.value.map((d, i) => {
     const frac = data.value.length <= 1 ? 0.5 : i / (data.value.length - 1);
     return { x: getX(frac), y: getY(d.morale) };
+  });
+});
+
+const fatigueDots = computed(() => {
+  return data.value.filter(d => d.fatigue !== undefined).map((d, i) => {
+    const allIdx = data.value.indexOf(d);
+    const frac = data.value.length <= 1 ? 0.5 : allIdx / (data.value.length - 1);
+    return { x: getX(frac), y: getY(d.fatigue ?? 0) };
   });
 });
 </script>
@@ -257,5 +304,10 @@ const moraleDots = computed(() => {
 .legend-morale {
   background: var(--accent-blue);
   box-shadow: 0 0 6px var(--accent-blue);
+}
+
+.legend-fatigue {
+  background: var(--accent-orange);
+  box-shadow: 0 0 6px var(--accent-orange);
 }
 </style>

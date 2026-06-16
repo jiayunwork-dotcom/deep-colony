@@ -1,5 +1,5 @@
 import Redis from 'ioredis';
-import type { GameState, Player, PlayerAction, ModuleType } from '@deep-colony/shared';
+import type { GameState, Player, PlayerAction, ModuleType, ShiftProcessingResult } from '@deep-colony/shared';
 import {
   createInitialGameState,
   processTurn,
@@ -201,17 +201,17 @@ export async function handlePlayerAction(
   return { success: true, state };
 }
 
-export async function advanceTurn(roomId: string): Promise<GameState | null> {
+export async function advanceTurn(roomId: string): Promise<{ state: GameState | null; shiftResult: ShiftProcessingResult }> {
   const state = await getGameState(roomId);
-  if (!state) return null;
+  if (!state) return { state: null, shiftResult: { shiftUpdates: [], statusUpdates: [] } };
 
-  if (state.phase !== 'playing') return state;
+  if (state.phase !== 'playing') return { state, shiftResult: { shiftUpdates: [], statusUpdates: [] } };
 
-  processTurn(state);
+  const shiftResult = processTurn(state);
   updateModuleEfficiencies(state);
   await saveGameState(roomId, state);
 
-  return state;
+  return { state, shiftResult };
 }
 
 export async function listRooms(): Promise<{ roomId: string; hostName: string; playerCount: number; maxPlayers: number; phase: string; turn: number }[]> {

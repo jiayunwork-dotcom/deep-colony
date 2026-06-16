@@ -1,4 +1,4 @@
-import type { GameState, PlayerAction, ModuleType, BatchPlayerAction, BatchActionResult } from '@deep-colony/shared';
+import type { GameState, PlayerAction, ModuleType, BatchPlayerAction, BatchActionResult, ShiftMode, ShiftGroup, ShiftProcessingResult } from '@deep-colony/shared';
 import { addLog, calculateModuleEfficiency, isModuleInEmergency, getEmergencyModules } from './state';
 import {
   processResourceProduction,
@@ -11,6 +11,7 @@ import {
 import { triggerRandomEvent, processActiveEvents } from './events';
 import { processTravel, checkVictory, checkDefeat } from './travel';
 import { processResearch } from './tech';
+import { processAllShifts, changeModuleShiftMode, reassignColonistShiftGroup } from './shifts';
 import { MODULE_SKILL_MATCH, AFK_TURNS_BEFORE_TAKEOVER, DISASTER_CHAIN_MODULE_THRESHOLD } from '@deep-colony/shared';
 
 const MAX_HISTORY_POINTS = 20;
@@ -21,6 +22,7 @@ export function recordColonistStats(state: GameState): void {
       turn: state.turn,
       health: colonist.health,
       morale: colonist.morale,
+      fatigue: colonist.fatigue,
     });
     if (colonist.statsHistory.length > MAX_HISTORY_POINTS) {
       colonist.statsHistory = colonist.statsHistory.slice(-MAX_HISTORY_POINTS);
@@ -28,12 +30,14 @@ export function recordColonistStats(state: GameState): void {
   }
 }
 
-export function processTurn(state: GameState): void {
-  if (state.phase !== 'playing') return;
+export function processTurn(state: GameState): ShiftProcessingResult {
+  if (state.phase !== 'playing') return { shiftUpdates: [], statusUpdates: [] };
 
   state.turn++;
   recordColonistStats(state);
   addLog(state, `=== 第 ${state.turn} 回合开始 ===`, 'info');
+
+  const shiftResult = processAllShifts(state);
 
   if (!checkPowerBalance(state)) {
     addLog(state, '⚠️ 总功耗超过发电上限，系统强制降低部分模块功耗', 'warning');
@@ -63,14 +67,16 @@ export function processTurn(state: GameState): void {
 
   triggerRandomEvent(state, isDisasterChain);
 
-  if (checkVictory(state)) return;
-  if (checkDefeat(state)) return;
+  if (checkVictory(state)) return shiftResult;
+  if (checkDefeat(state)) return shiftResult;
 
   updateModuleEfficiencies(state);
 
   checkAfkPlayers(state);
 
   addLog(state, `=== 第 ${state.turn} 回合结束 ===`, 'info');
+
+  return shiftResult;
 }
 
 export function updateModuleEfficiencies(state: GameState): void {
@@ -102,6 +108,10 @@ export function applyPlayerAction(state: GameState, playerId: string, action: Pl
       return handleStartResearch(state, playerId, action);
     case 'vote':
       return handleVote(state, playerId, action);
+    case 'changeShiftMode':
+      return handleChangeShiftMode(state, playerId, action);
+    case 'reassignShiftGroup':
+      return handleReassignShiftGroup(state, playerId, action);
     default:
       return false;
   }
@@ -274,6 +284,35 @@ export function autoAssignCrew(state: GameState): void {
       if (idx > -1) unassignedColonists.splice(idx, 1);
     }
   }
+}
+
+function handleChangeShiftMode(state: GameState, playerId: string, action: PlayerAction): boolean {
+  if (!action.moduleId || !action.shiftMode) return false;
+  if (!canPlayerModifyModule(state, playerId, action.moduleId)) return false;
+
+  const validModes: ShiftMode[] = ['continuous', 'threeShift', 'flexible'];
+  if (!validModes.includes(action.shiftMode)) return false;
+
+  const success = changeModuleShiftMode(state, action.moduleId, action.shiftMode);
+  if (success) {
+    state.players[playerId].lastActionTurn = state.turn;
+    updateModuleEfficiencies(state);
+  }
+  return success;
+}
+
+function handleReassignShiftGroup(state: GameState, playerId: string, action: PlayerAction): boolean {
+  if (!action.moduleId || !action.colonistId || !action.shiftGroup) return false;
+  if (!canPlayerModifyModule(state, playerId, action.moduleId)) return false;
+
+  const validGroups: ShiftGroup[] = ['A', 'B', 'C'];
+  if (!validGroups.includes(action.shiftGroup)) return false;
+
+  const success = reassignColonistShiftGroup(state, action.moduleId, action.colonistId, action.shiftGroup);
+  if (success) {
+    state.players[playerId].lastActionTurn = state.turn;
+  }
+  return success;
 }
 
 export function applyBatchPlayerAction(

@@ -53,6 +53,8 @@
               @crew-drag-start="onModuleCrewDragStart"
               @crew-drag-end="onModuleCrewDragEnd"
               @drag-over-change="(ov) => onModuleDragOver(m.id, ov)"
+              @change-shift-mode="onChangeShiftMode"
+              @reassign-shift-group="onReassignShiftGroup"
             />
           </div>
         </div>
@@ -160,7 +162,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useGameStore } from '@/stores/game';
-import type { Colonist, ModuleType, PlayerAction, BatchActionResult, ShipModule, SkillType } from '@deep-colony/shared';
+import type { Colonist, ModuleType, PlayerAction, BatchActionResult, ShipModule, SkillType, ShiftMode, ShiftGroup } from '@deep-colony/shared';
 import ColonistList from '@/components/crew/ColonistList.vue';
 import ModuleSlotCard from '@/components/crew/ModuleSlotCard.vue';
 import ColonistDetail from '@/components/crew/ColonistDetail.vue';
@@ -400,6 +402,24 @@ function goBack() {
 function goToOverview() {
   router.push(`/game/${roomId.value}`);
 }
+async function onChangeShiftMode(moduleId: string, mode: ShiftMode) {
+  const moduleIdTyped = moduleId as ModuleType;
+  if (!canManageModule(moduleIdTyped)) {
+    gameStore.pushNotification('error', '无权限操作该模块');
+    return;
+  }
+  await gameStore.changeShiftMode(moduleIdTyped, mode);
+}
+
+async function onReassignShiftGroup(moduleId: string, colonistId: string, group: ShiftGroup) {
+  const moduleIdTyped = moduleId as ModuleType;
+  if (!canManageModule(moduleIdTyped)) {
+    gameStore.pushNotification('error', '无权限操作该模块');
+    return;
+  }
+  await gameStore.reassignShiftGroup(moduleIdTyped, colonistId, group);
+}
+
 async function nextTurn() {
   await gameStore.advanceTurn();
 }

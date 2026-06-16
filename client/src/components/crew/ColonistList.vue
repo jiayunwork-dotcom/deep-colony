@@ -50,6 +50,27 @@
           <div class="stat-value frozen">{{ stats.statusCounts.frozen }}</div>
         </div>
       </div>
+      <div class="stat-card">
+        <div class="stat-icon warning">😰</div>
+        <div class="stat-content">
+          <div class="stat-label">过劳</div>
+          <div class="stat-value warning">{{ stats.statusCounts.overworked }}</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon danger">💀</div>
+        <div class="stat-content">
+          <div class="stat-label">倒下</div>
+          <div class="stat-value danger">{{ stats.statusCounts.collapsed }}</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon normal">⚡</div>
+        <div class="stat-content">
+          <div class="stat-label">疲劳均值</div>
+          <div class="stat-value" :class="avgFatigueClass">{{ stats.avgFatigue }}%</div>
+        </div>
+      </div>
     </div>
 
     <div class="filter-bar">
@@ -120,6 +141,8 @@
               infected: c.isInfected,
               mutineer: c.isMutineer,
               frozen: c.isFrozen,
+              overworked: c.isOverworked,
+              collapsed: c.isCollapsed,
               'has-hover': true
             }"
             draggable="true"
@@ -149,6 +172,9 @@
             </td>
             <td class="col-morale">
               <ValueBar :value="c.morale" />
+            </td>
+            <td class="col-fatigue">
+              <ValueBar :value="c.fatigue" :max="100" :color-scheme="'fatigue'" />
             </td>
             <td class="col-age">{{ c.age }}</td>
             <td v-for="s in skills" :key="'skill-' + s.key" class="col-skill">
@@ -199,6 +225,7 @@ const columns = [
   { key: 'name', label: '姓名', sortable: true, width: 110 },
   { key: 'health', label: '健康', sortable: true, width: 100 },
   { key: 'morale', label: '士气', sortable: true, width: 100 },
+  { key: 'fatigue', label: '疲劳', sortable: true, width: 100 },
   { key: 'age', label: '年龄', sortable: true, width: 60 },
   { key: 'engineering', label: '工程', sortable: true, width: 70 },
   { key: 'medical', label: '医学', sortable: true, width: 70 },
@@ -235,6 +262,8 @@ function setSort(key: string) {
 }
 
 function getColonistStatus(c: Colonist): string {
+  if (c.isCollapsed) return 'collapsed';
+  if (c.isOverworked) return 'overworked';
   if (c.isFrozen) return 'frozen';
   if (c.isMutineer) return 'mutineer';
   if (c.isInfected) return 'infected';
@@ -246,18 +275,27 @@ const stats = computed(() => {
   const total = list.length;
   let sumH = 0;
   let sumM = 0;
-  const statusCounts = { normal: 0, infected: 0, mutineer: 0, frozen: 0 };
+  let sumF = 0;
+  const statusCounts = { normal: 0, infected: 0, mutineer: 0, frozen: 0, overworked: 0, collapsed: 0 };
   for (const c of list) {
     sumH += c.health;
     sumM += c.morale;
+    sumF += c.fatigue;
     statusCounts[getColonistStatus(c) as keyof typeof statusCounts]++;
   }
   return {
     total,
     avgHealth: total > 0 ? Math.round(sumH / total) : 0,
     avgMorale: total > 0 ? Math.round(sumM / total) : 0,
+    avgFatigue: total > 0 ? Math.round(sumF / total) : 0,
     statusCounts,
   };
+});
+
+const avgFatigueClass = computed(() => {
+  if (stats.value.avgFatigue >= 80) return 'danger';
+  if (stats.value.avgFatigue >= 50) return 'warning';
+  return 'good';
 });
 
 const avgHealthClass = computed(() => {
@@ -299,6 +337,7 @@ function sortCompare(a: Colonist, b: Colonist): number {
     case 'name': va = a.name; vb = b.name; break;
     case 'health': va = a.health; vb = b.health; break;
     case 'morale': va = a.morale; vb = b.morale; break;
+    case 'fatigue': va = a.fatigue; vb = b.fatigue; break;
     case 'age': va = a.age; vb = b.age; break;
     case 'engineering':
     case 'medical':
@@ -553,7 +592,7 @@ watch([filters], () => {
 .col-checkbox { width: 36px; text-align: center; }
 .col-drag { width: 28px; text-align: center; }
 .col-name { min-width: 110px; }
-.col-health, .col-morale { width: 110px; }
+.col-health, .col-morale, .col-fatigue { width: 110px; }
 .col-age { width: 56px; text-align: center; }
 .col-skill { width: 78px; text-align: center; }
 .col-module { width: 100px; }
@@ -605,6 +644,12 @@ watch([filters], () => {
 }
 .colonist-row.frozen {
   background: linear-gradient(90deg, rgba(0, 212, 255, 0.08), transparent);
+}
+.colonist-row.overworked {
+  background: linear-gradient(90deg, rgba(255, 165, 0, 0.08), transparent);
+}
+.colonist-row.collapsed {
+  background: linear-gradient(90deg, rgba(255, 68, 102, 0.12), transparent);
 }
 
 .col-name {

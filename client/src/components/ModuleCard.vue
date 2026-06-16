@@ -1,5 +1,5 @@
 <template>
-  <div :class="['module-card', { manageable: isManageable, damaged: isDamaged, critical: isCritical, emergency: isEmergency }]">
+  <div :class="['module-card', { manageable: isManageable, damaged: isDamaged, critical: isCritical, emergency: isEmergency, understaffed: hasAlarm }]">
     <div class="module-header">
       <span class="module-name">{{ module.name }}</span>
       <span v-if="isManageable" class="manage-badge">管理中</span>
@@ -26,7 +26,10 @@
       </div>
       <div class="stat">
         <span class="stat-label">人员</span>
-        <span class="stat-value">{{ module.crewAssigned.length }}/{{ module.crewRequired }}</span>
+        <span class="stat-value" :class="{ 'alarm': hasAlarm }">
+          <span v-if="hasAlarm" class="alarm-icon">⚠️</span>
+          {{ module.crewAssigned.length }}/{{ module.crewRequired }}
+        </span>
       </div>
     </div>
 
@@ -71,6 +74,7 @@ const emit = defineEmits<{
 const isDamaged = computed(() => props.module.durability < 50);
 const isCritical = computed(() => props.module.durability < 30);
 const isEmergency = computed(() => props.module.durability > 0 && props.module.durability < EMERGENCY_DURABILITY_THRESHOLD);
+const hasAlarm = computed(() => props.module.shiftConfig?.hasAlarm ?? false);
 
 const durabilityClass = computed(() => {
   if (props.module.durability < EMERGENCY_DURABILITY_THRESHOLD) return 'critical';
@@ -123,6 +127,44 @@ function setPower(level: number) {
   border-color: var(--accent-red);
   border-width: 3px;
   animation: emergency-flash 0.8s infinite;
+}
+
+.module-card.understaffed {
+  border-color: var(--accent-red);
+  border-width: 2px;
+  animation: understaffed-flash 1.2s infinite;
+}
+
+@keyframes understaffed-flash {
+  0%, 100% {
+    border-color: var(--accent-red);
+    box-shadow: 0 0 8px rgba(255, 68, 102, 0.4);
+  }
+  50% {
+    border-color: #ff6688;
+    box-shadow: 0 0 20px rgba(255, 68, 102, 0.8), inset 0 0 10px rgba(255, 68, 102, 0.1);
+  }
+}
+
+.stat-value.alarm {
+  color: var(--accent-red);
+  animation: alarm-pulse 1.2s ease-in-out infinite;
+}
+.alarm-icon {
+  margin-right: 4px;
+  display: inline-block;
+  animation: alarm-shake 0.5s ease-in-out infinite;
+}
+
+@keyframes alarm-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes alarm-shake {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-10deg); }
+  75% { transform: rotate(10deg); }
 }
 
 @keyframes pulse-danger {

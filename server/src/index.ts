@@ -13,7 +13,7 @@ import {
   getPlayerRoom,
   handleBatchPlayerAction,
 } from './room/roomManager';
-import type { PlayerAction, BatchPlayerAction } from '@deep-colony/shared';
+import type { PlayerAction, BatchPlayerAction, ModuleType, ShipModule } from '@deep-colony/shared';
 
 const PORT = parseInt(process.env.PORT || '3001');
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
@@ -173,15 +173,29 @@ fastify.post('/api/rooms/:roomId/turn', async (request, reply) => {
     return { error: '只有房主可以推进回合' };
   }
 
-  const newState = await advanceTurn(roomId.toUpperCase());
+  const { state: newState, shiftResult } = await advanceTurn(roomId.toUpperCase());
   if (newState) {
     broadcastToRoom(roomId.toUpperCase(), {
       type: 'turnAdvanced',
       state: newState,
     });
+
+    if (shiftResult.shiftUpdates.length > 0) {
+      broadcastToRoom(roomId.toUpperCase(), {
+        type: 'turnShiftUpdate',
+        updates: shiftResult.shiftUpdates,
+      });
+    }
+
+    if (shiftResult.statusUpdates.length > 0) {
+      broadcastToRoom(roomId.toUpperCase(), {
+        type: 'colonistStatusUpdate',
+        updates: shiftResult.statusUpdates,
+      });
+    }
   }
 
-  return { success: true, state: newState };
+  return { success: true, state: newState, shiftResult };
 });
 
 fastify.register(async (fastify) => {
@@ -215,6 +229,22 @@ fastify.register(async (fastify) => {
                 type: 'stateUpdated',
                 state: result.state,
               });
+
+              if (data.action.type === 'changeShiftMode' && data.action.moduleId) {
+                const moduleId = data.action.moduleId as string;
+                const modules = result.state.modules as Record<string, ShipModule>;
+                const module = modules[moduleId];
+                if (module) {
+                  broadcastToRoom(upperRoomId, {
+                    type: 'turnShiftUpdate',
+                    updates: [{
+                      moduleId: data.action.moduleId,
+                      shiftConfig: { ...module.shiftConfig },
+                      affectedColonists: module.crewAssigned,
+                    }],
+                  });
+                }
+              }
             }
             break;
           case 'batchAction':

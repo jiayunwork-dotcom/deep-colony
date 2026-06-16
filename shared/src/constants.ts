@@ -144,3 +144,31 @@ export const REPAIR_AMOUNT_WITH_PARTS = 10;
 export const COMMUNICATION_SCAN_RANGE = 100;
 export const COMMUNICATION_RESOURCE_BONUS_CHANCE = 0.3;
 export const COMMUNICATION_CALL_INTERVAL = 5;
+
+export const FATIGUE_OVERWORK_THRESHOLD = 80;
+export const FATIGUE_COLLAPSE_THRESHOLD = 100;
+export const OVERWORK_EFFICIENCY_PENALTY = 0.4;
+
+export const CONTINUOUS_FATIGUE_PER_TURN = 15;
+export const THREESHIFT_WORKING_FATIGUE_PER_TURN = 8;
+export const THREESHIFT_RESTING_RECOVERY_PER_TURN = 12;
+export const FLEXIBLE_EMERGENCY_FATIGUE_PER_TURN = 20;
+export const FLEXIBLE_NORMAL_FATIGUE_PER_TURN = 10;
+export const FLEXIBLE_NORMAL_STAFF_RATIO = 0.6;
+
+export const THREESHIFT_SHIFTS_PER_CYCLE = 3;
+export const THREESHIFT_TURNS_PER_SHIFT = 3;
+
+export const SHIFT_MODE_NAMES: Record<string, string> = {
+  continuous: '连续工作',
+  threeShift: '三班倒',
+  flexible: '弹性排班',
+};
+
+export const SHIFT_GROUP_NAMES: Record<string, string> = {
+  A: 'A班',
+  B: 'B班',
+  C: 'C班',
+};
+
+export const UNDERSTAFFED_ALARM_RATIO = 0.5;

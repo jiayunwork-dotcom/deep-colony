@@ -18,6 +18,26 @@ export type GamePhase = 'waiting' | 'playing' | 'ended';
 
 export type TurnPhase = 'planning' | 'voting' | 'resolving' | 'events';
 
+export type ShiftMode = 'continuous' | 'threeShift' | 'flexible';
+
+export type ShiftGroup = 'A' | 'B' | 'C';
+
+export type EmergencyLevel = 'normal' | 'warning' | 'critical';
+
+export interface ShiftAssignment {
+  colonistId: string;
+  group: ShiftGroup;
+}
+
+export interface ModuleShiftConfig {
+  mode: ShiftMode;
+  currentShift: ShiftGroup;
+  turnsUntilNextShift: number;
+  assignments: ShiftAssignment[];
+  emergencyLevel: EmergencyLevel;
+  hasAlarm: boolean;
+}
+
 export interface ShipModule {
   id: ModuleType;
   name: string;
@@ -28,12 +48,14 @@ export interface ShipModule {
   crewRequired: number;
   crewAssigned: string[];
   efficiency: number;
+  shiftConfig: ModuleShiftConfig;
 }
 
 export interface ColonistStatsPoint {
   turn: number;
   health: number;
   morale: number;
+  fatigue: number;
 }
 
 export interface Colonist {
@@ -42,6 +64,7 @@ export interface Colonist {
   health: number;
   maxHealth: number;
   morale: number;
+  fatigue: number;
   age: number;
   skills: Record<SkillType, number>;
   assignedModule: ModuleType | null;
@@ -50,6 +73,8 @@ export interface Colonist {
   isInfected: boolean;
   infectionTurnsLeft: number;
   isFrozen: boolean;
+  isOverworked: boolean;
+  isCollapsed: boolean;
   statsHistory: ColonistStatsPoint[];
 }
 
@@ -177,13 +202,33 @@ export interface GameLogEntry {
 }
 
 export interface PlayerAction {
-  type: 'setPower' | 'assignCrew' | 'unassignCrew' | 'startResearch' | 'vote' | 'dockRelay' | 'slingshot';
+  type: 'setPower' | 'assignCrew' | 'unassignCrew' | 'startResearch' | 'vote' | 'dockRelay' | 'slingshot' | 'changeShiftMode' | 'reassignShiftGroup';
   moduleId?: ModuleType;
   powerLevel?: number;
   colonistId?: string;
   techId?: string;
   voteOption?: string;
   relayDistance?: number;
+  shiftMode?: ShiftMode;
+  shiftGroup?: ShiftGroup;
+}
+
+export interface TurnShiftUpdate {
+  moduleId: ModuleType;
+  shiftConfig: ModuleShiftConfig;
+  affectedColonists: string[];
+}
+
+export interface ColonistStatusUpdate {
+  colonistId: string;
+  isOverworked: boolean;
+  isCollapsed: boolean;
+  fatigue: number;
+}
+
+export interface ShiftProcessingResult {
+  shiftUpdates: TurnShiftUpdate[];
+  statusUpdates: ColonistStatusUpdate[];
 }
 
 export interface RoomInfo {

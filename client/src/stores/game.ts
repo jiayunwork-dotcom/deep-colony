@@ -6,6 +6,11 @@ import type {
   RoomInfo,
   BatchPlayerAction,
   BatchActionResult,
+  ModuleType,
+  ShiftMode,
+  ShiftGroup,
+  TurnShiftUpdate,
+  ColonistStatusUpdate,
 } from '@deep-colony/shared';
 
 export const useGameStore = defineStore('game', () => {
@@ -211,6 +216,25 @@ export const useGameStore = defineStore('game', () => {
     return data;
   }
 
+  async function changeShiftMode(moduleId: ModuleType, shiftMode: ShiftMode) {
+    const action: PlayerAction = {
+      type: 'changeShiftMode',
+      moduleId,
+      shiftMode,
+    };
+    await sendAction(action);
+  }
+
+  async function reassignShiftGroup(moduleId: ModuleType, colonistId: string, shiftGroup: ShiftGroup) {
+    const action: PlayerAction = {
+      type: 'reassignShiftGroup',
+      moduleId,
+      colonistId,
+      shiftGroup,
+    };
+    await sendAction(action);
+  }
+
   function connectWebSocket(roomId: string) {
     if (ws.value) {
       ws.value.close();
@@ -250,6 +274,28 @@ export const useGameStore = defineStore('game', () => {
       case 'playerLeft':
         if (data.state) {
           gameState.value = data.state;
+        }
+        break;
+      case 'turnShiftUpdate':
+        if (data.updates && gameState.value) {
+          for (const update of data.updates as TurnShiftUpdate[]) {
+            const module = gameState.value.modules[update.moduleId];
+            if (module) {
+              module.shiftConfig = { ...update.shiftConfig };
+            }
+          }
+        }
+        break;
+      case 'colonistStatusUpdate':
+        if (data.updates && gameState.value) {
+          for (const update of data.updates as ColonistStatusUpdate[]) {
+            const colonist = gameState.value.colonists[update.colonistId];
+            if (colonist) {
+              colonist.fatigue = update.fatigue;
+              colonist.isOverworked = update.isOverworked;
+              colonist.isCollapsed = update.isCollapsed;
+            }
+          }
         }
         break;
       case 'batchActionResult':
@@ -325,6 +371,8 @@ export const useGameStore = defineStore('game', () => {
     sendAction,
     sendBatchAction,
     advanceTurn,
+    changeShiftMode,
+    reassignShiftGroup,
     connectWebSocket,
     sendChat,
     disconnectWebSocket,
