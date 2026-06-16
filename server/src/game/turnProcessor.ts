@@ -1,5 +1,5 @@
 import type { GameState, PlayerAction, ModuleType } from '@deep-colony/shared';
-import { addLog, calculateModuleEfficiency } from './state';
+import { addLog, calculateModuleEfficiency, isModuleInEmergency, getEmergencyModules } from './state';
 import {
   processResourceProduction,
   processColonistStatus,
@@ -11,7 +11,7 @@ import {
 import { triggerRandomEvent, processActiveEvents } from './events';
 import { processTravel, checkVictory, checkDefeat } from './travel';
 import { processResearch } from './tech';
-import { MODULE_SKILL_MATCH, AFK_TURNS_BEFORE_TAKEOVER } from '@deep-colony/shared';
+import { MODULE_SKILL_MATCH, AFK_TURNS_BEFORE_TAKEOVER, DISASTER_CHAIN_MODULE_THRESHOLD } from '@deep-colony/shared';
 
 export function processTurn(state: GameState): void {
   if (state.phase !== 'playing') return;
@@ -38,7 +38,14 @@ export function processTurn(state: GameState): void {
 
   processActiveEvents(state);
 
-  triggerRandomEvent(state);
+  const emergencyModules = getEmergencyModules(state);
+  const isDisasterChain = emergencyModules.length > DISASTER_CHAIN_MODULE_THRESHOLD;
+
+  if (isDisasterChain) {
+    addLog(state, '⚠️ 灾难连锁：多模块濒临瘫痪，危机加剧', 'danger');
+  }
+
+  triggerRandomEvent(state, isDisasterChain);
 
   if (checkVictory(state)) return;
   if (checkDefeat(state)) return;
@@ -92,6 +99,11 @@ function handleSetPower(state: GameState, playerId: string, action: PlayerAction
   if (!module) return false;
 
   if (action.powerLevel < 1 || action.powerLevel > module.maxPowerLevel) return false;
+
+  if (isModuleInEmergency(module) && action.powerLevel > module.powerLevel) {
+    addLog(state, `⚠️ ${module.name} 处于紧急状态，无法调高功耗`, 'warning');
+    return false;
+  }
 
   module.powerLevel = action.powerLevel;
   state.players[playerId].lastActionTurn = state.turn;

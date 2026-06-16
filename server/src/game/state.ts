@@ -21,6 +21,7 @@ import {
   TECH_TREE,
   MAX_PLAYERS,
   DURABILITY_WARNING,
+  EMERGENCY_DURABILITY_THRESHOLD,
 } from '@deep-colony/shared';
 
 const COLONIST_FIRST_NAMES = [
@@ -193,5 +194,36 @@ export function addLog(state: GameState, message: string, type: GameLogEntry['ty
   });
   if (state.gameLog.length > 100) {
     state.gameLog = state.gameLog.slice(-100);
+  }
+}
+
+export function isModuleInEmergency(module: ShipModule): boolean {
+  return module.durability > 0 && module.durability < EMERGENCY_DURABILITY_THRESHOLD;
+}
+
+export function getEmergencyModules(state: GameState): ShipModule[] {
+  return Object.values(state.modules).filter(m => isModuleInEmergency(m));
+}
+
+export function calculateShipHealth(state: GameState): number {
+  const modules = Object.values(state.modules);
+  const totalCurrentDurability = modules.reduce((sum, m) => sum + m.durability, 0);
+  const totalMaxDurability = modules.reduce((sum, m) => sum + m.maxDurability, 0);
+  return (totalCurrentDurability / totalMaxDurability) * 100;
+}
+
+export function checkModuleEmergencyStatus(
+  state: GameState,
+  moduleId: string,
+  previousDurability: number
+): void {
+  const module = state.modules[moduleId as keyof typeof state.modules];
+  if (!module) return;
+
+  const wasInEmergency = previousDurability > 0 && previousDurability < EMERGENCY_DURABILITY_THRESHOLD;
+  const isNowInEmergency = isModuleInEmergency(module);
+
+  if (!wasInEmergency && isNowInEmergency) {
+    addLog(state, `🚨 ${module.name}即将瘫痪！`, 'danger');
   }
 }

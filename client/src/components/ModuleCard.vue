@@ -1,5 +1,5 @@
 <template>
-  <div :class="['module-card', { manageable: isManageable, damaged: isDamaged, critical: isCritical }]">
+  <div :class="['module-card', { manageable: isManageable, damaged: isDamaged, critical: isCritical, emergency: isEmergency }]">
     <div class="module-header">
       <span class="module-name">{{ module.name }}</span>
       <span v-if="isManageable" class="manage-badge">管理中</span>
@@ -31,12 +31,16 @@
     </div>
 
     <div v-if="isManageable" class="power-control">
-      <span class="power-label">功耗等级</span>
+      <span class="power-label">
+        功耗等级
+        <span v-if="isEmergency" class="emergency-note">（紧急状态，仅可调低）</span>
+      </span>
       <div class="power-buttons">
         <button
           v-for="level in module.maxPowerLevel"
           :key="level"
-          :class="['power-btn', { active: module.powerLevel === level }]"
+          :class="['power-btn', { active: module.powerLevel === level, disabled: isPowerDisabled(level) }]"
+          :disabled="isPowerDisabled(level)"
           @click="setPower(level)"
         >
           {{ level }}
@@ -53,6 +57,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { ShipModule, ModuleType } from '@deep-colony/shared';
+import { EMERGENCY_DURABILITY_THRESHOLD } from '@deep-colony/shared';
 
 const props = defineProps<{
   module: ShipModule;
@@ -65,15 +70,25 @@ const emit = defineEmits<{
 
 const isDamaged = computed(() => props.module.durability < 50);
 const isCritical = computed(() => props.module.durability < 30);
+const isEmergency = computed(() => props.module.durability > 0 && props.module.durability < EMERGENCY_DURABILITY_THRESHOLD);
 
 const durabilityClass = computed(() => {
+  if (props.module.durability < EMERGENCY_DURABILITY_THRESHOLD) return 'critical';
   if (props.module.durability < 30) return 'critical';
   if (props.module.durability < 60) return 'warning';
   return 'normal';
 });
 
+function isPowerDisabled(level: number): boolean {
+  if (!props.isManageable) return true;
+  if (isEmergency.value && level > props.module.powerLevel) {
+    return true;
+  }
+  return false;
+}
+
 function setPower(level: number) {
-  if (props.isManageable) {
+  if (props.isManageable && !isPowerDisabled(level)) {
     emit('powerChange', props.module.id, level);
   }
 }
@@ -104,9 +119,26 @@ function setPower(level: number) {
   animation: pulse-danger 2s infinite;
 }
 
+.module-card.emergency {
+  border-color: var(--accent-red);
+  border-width: 3px;
+  animation: emergency-flash 0.8s infinite;
+}
+
 @keyframes pulse-danger {
   0%, 100% { box-shadow: 0 0 5px rgba(255, 68, 102, 0.3); }
   50% { box-shadow: 0 0 15px rgba(255, 68, 102, 0.6); }
+}
+
+@keyframes emergency-flash {
+  0%, 100% {
+    border-color: var(--accent-red);
+    box-shadow: 0 0 10px rgba(255, 68, 102, 0.8), inset 0 0 10px rgba(255, 68, 102, 0.2);
+  }
+  50% {
+    border-color: #ff6688;
+    box-shadow: 0 0 25px rgba(255, 68, 102, 1), inset 0 0 20px rgba(255, 68, 102, 0.4);
+  }
 }
 
 .module-header {
@@ -227,6 +259,22 @@ function setPower(level: number) {
   background: var(--accent-blue);
   border-color: var(--accent-blue);
   color: white;
+}
+
+.power-btn.disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.power-btn.disabled:hover {
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+}
+
+.emergency-note {
+  color: var(--accent-red);
+  font-size: 11px;
+  margin-left: 8px;
 }
 
 .power-value {

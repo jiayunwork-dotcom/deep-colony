@@ -1,5 +1,19 @@
 <template>
   <div class="resource-panel">
+    <div class="ship-health">
+      <div class="health-header">
+        <span class="health-label">🚀 飞船整体健康度</span>
+        <span class="health-value" :class="healthClass">{{ shipHealth.toFixed(1) }}%</span>
+      </div>
+      <div class="health-bar">
+        <div
+          class="health-fill"
+          :class="healthClass"
+          :style="{ width: shipHealth + '%' }"
+        ></div>
+      </div>
+    </div>
+
     <h3>资源状态</h3>
     <div class="resource-list">
       <div class="resource-item">
@@ -36,8 +50,23 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useGameStore } from '@/stores/game';
+import { SHIP_HEALTH_GREEN_THRESHOLD, SHIP_HEALTH_YELLOW_THRESHOLD } from '@deep-colony/shared';
 
 const gameStore = useGameStore();
+
+const shipHealth = computed(() => {
+  if (!gameStore.gameState) return 100;
+  const modules = Object.values(gameStore.gameState.modules);
+  const totalCurrent = modules.reduce((sum, m) => sum + m.durability, 0);
+  const totalMax = modules.reduce((sum, m) => sum + m.maxDurability, 0);
+  return (totalCurrent / totalMax) * 100;
+});
+
+const healthClass = computed(() => {
+  if (shipHealth.value >= SHIP_HEALTH_GREEN_THRESHOLD) return 'good';
+  if (shipHealth.value >= SHIP_HEALTH_YELLOW_THRESHOLD) return 'warning';
+  return 'danger';
+});
 
 const maxPower = computed(() => {
   return gameStore.gameState?.resources.maxElectricity || 25;
@@ -80,6 +109,78 @@ function getResourceClass(value: number, max: number): string {
   border: 1px solid var(--border-color);
   border-radius: 10px;
   padding: 14px;
+}
+
+.ship-health {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.health-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.health-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.health-value {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.health-value.good {
+  color: var(--accent-green);
+}
+
+.health-value.warning {
+  color: var(--accent-yellow);
+}
+
+.health-value.danger {
+  color: var(--accent-red);
+}
+
+.health-bar {
+  height: 10px;
+  background: var(--bg-primary);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.health-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.5s ease, background-color 0.3s ease;
+}
+
+.health-fill.good {
+  background: var(--accent-green);
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+}
+
+.health-fill.warning {
+  background: var(--accent-yellow);
+  box-shadow: 0 0 10px rgba(255, 204, 0, 0.3);
+}
+
+.health-fill.danger {
+  background: var(--accent-red);
+  box-shadow: 0 0 10px rgba(255, 68, 102, 0.3);
+  animation: health-pulse 1s infinite;
+}
+
+@keyframes health-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
 
 .resource-panel h3 {

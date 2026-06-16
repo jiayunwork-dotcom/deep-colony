@@ -1,6 +1,5 @@
 import type { GameState, GameEvent, ModuleType } from '@deep-colony/shared';
-import { addLog } from './state';
-import { calculateModuleEfficiency } from './state';
+import { addLog, calculateModuleEfficiency, checkModuleEmergencyStatus } from './state';
 import {
   METEOR_DAMAGE_MIN,
   METEOR_DAMAGE_MAX,
@@ -12,7 +11,8 @@ import {
   MUTINY_DURATION,
   MUTINY_MORALE_THRESHOLD,
   MYSTERIOUS_SIGNAL_GOOD_CHANCE,
-  EVENT_PROBABILITY,
+  BASE_EVENT_PROBABILITY,
+  DISASTER_CHAIN_EVENT_PROBABILITY,
 } from '@deep-colony/shared';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -25,8 +25,9 @@ function getRandomModule(state: GameState): ModuleType {
   return modules[randomInt(0, modules.length - 1)];
 }
 
-export function triggerRandomEvent(state: GameState): void {
-  if (Math.random() > EVENT_PROBABILITY) return;
+export function triggerRandomEvent(state: GameState, isDisasterChain: boolean = false): void {
+  const probability = isDisasterChain ? DISASTER_CHAIN_EVENT_PROBABILITY : BASE_EVENT_PROBABILITY;
+  if (Math.random() > probability) return;
 
   const eventPool = [
     { type: 'meteorStrike', weight: 15 },
@@ -36,8 +37,11 @@ export function triggerRandomEvent(state: GameState): void {
     { type: 'mutiny', weight: 8 },
     { type: 'mysteriousSignal', weight: 10 },
     { type: 'solarStorm', weight: 8 },
-    { type: 'supplyPod', weight: 12 },
   ];
+
+  if (!isDisasterChain) {
+    eventPool.push({ type: 'supplyPod', weight: 12 });
+  }
 
   const totalWeight = eventPool.reduce((sum, e) => sum + e.weight, 0);
   let random = Math.random() * totalWeight;
@@ -247,17 +251,21 @@ export function applyEventEffect(state: GameState, event: GameEvent): void {
           const module = state.modules[moduleId];
           const damageMatch = event.description.match(/造成 (\d+) 点伤害/);
           const damage = damageMatch ? parseInt(damageMatch[1]) : METEOR_DAMAGE_MIN;
+          const previousDurability = module.durability;
           module.durability = Math.max(0, module.durability - damage);
+          checkModuleEmergencyStatus(state, moduleId, previousDurability);
         }
       }
       break;
     case 'systemFailure':
       if (event.affectedModules) {
         for (const moduleId of event.affectedModules) {
+          const previousDurability = state.modules[moduleId].durability;
           state.modules[moduleId].durability = Math.max(
             0,
             state.modules[moduleId].durability - SYSTEM_FAILURE_DAMAGE
           );
+          checkModuleEmergencyStatus(state, moduleId, previousDurability);
         }
       }
       break;
@@ -319,7 +327,9 @@ export function resolveMysteriousSignal(state: GameState, investigate: boolean):
     } else {
       const damage = randomInt(10, 30);
       const targetModule = getRandomModule(state);
-      state.modules[targetModule].durability -= damage;
+      const previousDurability = state.modules[targetModule].durability;
+      state.modules[targetModule].durability = Math.max(0, state.modules[targetModule].durability - damage);
+      checkModuleEmergencyStatus(state, targetModule, previousDurability);
       addLog(state, `神秘信号调查遭遇危险！${state.modules[targetModule].name} 受损 ${damage} 点`, 'danger');
     }
   } else {
