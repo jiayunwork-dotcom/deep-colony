@@ -1,0 +1,95 @@
+import type { TechNode } from './types';
+
+export const TECH_TREE: Record<string, TechNode> = {
+  efficientSolarPanels: {
+    id: 'efficientSolarPanels',
+    name: '高效太阳能板',
+    description: '总发电量提升20%',
+    cost: 50,
+    tier: 1,
+    prerequisites: [],
+    researched: false,
+    effect: {
+      type: 'powerBonus',
+      value: 0.2,
+    },
+  },
+  geneticallyEnhancedCrops: {
+    id: 'geneticallyEnhancedCrops',
+    name: '基因强化农作物',
+    description: '农场产出提升30%',
+    cost: 50,
+    tier: 1,
+    prerequisites: [],
+    researched: false,
+    effect: {
+      type: 'farmBonus',
+      value: 0.3,
+    },
+  },
+  nanoRepairBots: {
+    id: 'nanoRepairBots',
+    name: '纳米修复机器人',
+    description: '每回合自动修复所有模块耐久+2',
+    cost: 50,
+    tier: 1,
+    prerequisites: [],
+    researched: false,
+    effect: {
+      type: 'autoRepair',
+      value: 2,
+    },
+  },
+  cryoSleepChambers: {
+    id: 'cryoSleepChambers',
+    name: '冷冻休眠舱',
+    description: '可冻结部分人口减少资源消耗',
+    cost: 100,
+    tier: 2,
+    prerequisites: ['geneticallyEnhancedCrops'],
+    researched: false,
+    effect: {
+      type: 'cryoChambers',
+      value: 0,
+    },
+  },
+  shieldUpgrade: {
+    id: 'shieldUpgrade',
+    name: '护盾升级',
+    description: '陨石伤害减免50%',
+    cost: 100,
+    tier: 2,
+    prerequisites: ['efficientSolarPanels'],
+    researched: false,
+    effect: {
+      type: 'shieldUpgrade',
+      value: 0.5,
+    },
+  },
+  aiPiloting: {
+    id: 'aiPiloting',
+    name: 'AI辅助驾驶',
+    description: '引擎效率提升25%',
+    cost: 100,
+    tier: 2,
+    prerequisites: ['nanoRepairBots'],
+    researched: false,
+    effect: {
+      type: 'engineEfficiency',
+      value: 0.25,
+    },
+  },
+  warpPrototype: {
+    id: 'warpPrototype',
+    name: '曲速原型机',
+    description: '航行速度翻倍但有故障风险',
+    cost: 200,
+    tier: 3,
+    prerequisites: ['cryoSleepChambers', 'shieldUpgrade', 'aiPiloting'],
+    researched: false,
+    effect: {
+      type: 'warpDrive',
+      value: 2,
+    },
+  },
+};

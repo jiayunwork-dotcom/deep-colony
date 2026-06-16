@@ -1,0 +1,23 @@
+{
+  "name": "@deep-colony/client",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@deep-colony/shared": "^1.0.0",
+    "pinia": "^2.1.7",
+    "vue": "^3.4.0",
+    "vue-router": "^4.2.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "typescript": "5.4",
+    "vite": "^5.0.0",
+    "vue-tsc": "^2.2.12"
+  }
+}
