@@ -8,10 +8,12 @@
               {{ colonist?.name.slice(0, 1) }}
             </div>
             <div class="title-text">
-              <h2 class="colonist-name">{{ colonist?.name }}</h2>
+              <h2 class="colonist-name">
+                {{ colonist?.name }}
+                <span class="age-badge">{{ colonist?.age }}岁</span>
+              </h2>
               <div class="colonist-meta">
                 <StatusTag v-if="colonist" :colonist="colonist" />
-                <span class="age-info">年龄: {{ colonist?.age }} 岁</span>
               </div>
             </div>
           </div>
@@ -29,6 +31,10 @@
               <div class="stat-box">
                 <div class="stat-box-label">士气</div>
                 <ValueBar :value="colonist.morale" />
+              </div>
+              <div class="stat-box">
+                <div class="stat-box-label">年龄</div>
+                <div class="stat-box-value">{{ colonist.age }} <span class="stat-unit">岁</span></div>
               </div>
             </div>
 
@@ -305,8 +311,6 @@ function onAssignChange(e: Event) {
   gap: 10px;
   font-size: 12px;
 }
-.age-info { color: var(--text-secondary); }
-
 .close-btn {
   width: 36px;
   height: 36px;
@@ -351,7 +355,7 @@ function onAssignChange(e: Event) {
 
 .stat-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 14px;
 }
 .stat-box {
@@ -367,6 +371,32 @@ function onAssignChange(e: Event) {
   font-size: 11px;
   color: var(--text-muted);
   font-weight: 500;
+}
+
+.stat-box-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.stat-unit {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.age-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: rgba(0, 212, 255, 0.12);
+  border: 1px solid rgba(0, 212, 255, 0.35);
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-cyan);
+  margin-left: 8px;
+  vertical-align: middle;
 }
 
 .status-duration {

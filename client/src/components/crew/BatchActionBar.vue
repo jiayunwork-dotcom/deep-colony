@@ -23,16 +23,16 @@
       </div>
 
       <div class="bar-right">
-        <div class="assign-dropdown" v-if="manageableModules.length > 0">
+        <div class="assign-dropdown">
           <button
             class="btn btn-primary"
-            :disabled="loading"
-            @click="isDropdownOpen = !isDropdownOpen"
+            :disabled="loading || manageableModules.length === 0"
+            @click="manageableModules.length > 0 && (isDropdownOpen = !isDropdownOpen)"
           >
             📥 批量分配到...
-            <span class="arrow">{{ isDropdownOpen ? '▲' : '▼' }}</span>
+            <span v-if="manageableModules.length > 0" class="arrow">{{ isDropdownOpen ? '▲' : '▼' }}</span>
           </button>
-          <div v-if="isDropdownOpen" class="dropdown-menu">
+          <div v-if="isDropdownOpen && manageableModules.length > 0" class="dropdown-menu">
             <div class="dropdown-header">选择目标模块（仅显示你管理的模块）</div>
             <button
               v-for="m in manageableModules"
@@ -45,11 +45,11 @@
               <span class="mod-name">{{ m.name }}</span>
               <span class="mod-count">{{ m.crewAssigned.length }}/{{ m.crewRequired }}</span>
             </button>
-            <div v-if="manageableModules.length === 0" class="dropdown-empty">
-              暂无你管理的模块
-            </div>
           </div>
         </div>
+        <span v-if="manageableModules.length === 0" class="no-modules-hint" title="当前玩家未管理任何模块，无法分配">
+          🔒
+        </span>
         <button
           class="btn btn-warn"
           :disabled="loading"
@@ -322,6 +322,13 @@ function handleBatchUnassign() {
   text-align: center;
   color: var(--text-muted);
   font-size: 12px;
+}
+
+.no-modules-hint {
+  font-size: 14px;
+  color: var(--text-muted);
+  cursor: help;
+  opacity: 0.7;
 }
 
 .dropdown-mask {

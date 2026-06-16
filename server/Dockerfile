@@ -3,6 +3,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
+COPY .npmrc ./
 COPY shared/package.json ./shared/package.json
 COPY server/package.json ./server/package.json
 

@@ -84,11 +84,12 @@
       <table class="colonist-table">
         <thead>
           <tr>
-            <th class="col-checkbox">
+            <th class="col-checkbox" @click.stop @mousedown.stop @dragstart.stop>
               <input
                 type="checkbox"
                 :checked="isAllSelected"
                 :indeterminate="isPartiallySelected"
+                @click.stop
                 @change="toggleSelectAll"
               />
             </th>
@@ -126,10 +127,11 @@
             @dragend="onDragEnd($event)"
             @click="onRowClick($event, c)"
           >
-            <td class="col-checkbox" @click.stop>
+            <td class="col-checkbox" @click.stop @mousedown.stop @dragstart.stop>
               <input
                 type="checkbox"
                 :checked="selectedIds.has(c.id)"
+                @click.stop
                 @change="toggleSelect(c.id)"
               />
             </td>

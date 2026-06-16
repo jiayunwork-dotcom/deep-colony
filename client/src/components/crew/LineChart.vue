@@ -1,5 +1,11 @@
 <template>
   <div class="line-chart-wrapper" :style="{ width: width + 'px', height: height + 'px' }">
+    <div v-if="data.length < 2" class="chart-empty">
+      <span class="empty-icon">📈</span>
+      <span class="empty-text">暂无历史数据</span>
+      <span class="empty-hint">将在后续回合中记录健康/士气变化</span>
+    </div>
+    <template v-else>
     <svg :width="width" :height="height" class="line-chart">
       <defs>
         <linearGradient :id="gradIdHealth" x1="0" y1="0" x2="0" y2="1">
@@ -83,6 +89,7 @@
         >T{{ lbl }}</text>
       </g>
     </svg>
+    </template>
 
     <div class="chart-legend">
       <div class="legend-item">
@@ -201,6 +208,20 @@ const moraleDots = computed(() => {
   padding: 8px;
   border: 1px solid var(--border-color);
 }
+
+.chart-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--text-muted);
+}
+.empty-icon { font-size: 28px; opacity: 0.5; }
+.empty-text { font-size: 14px; font-weight: 500; }
+.empty-hint { font-size: 11px; opacity: 0.7; }
 
 .line-chart {
   display: block;
