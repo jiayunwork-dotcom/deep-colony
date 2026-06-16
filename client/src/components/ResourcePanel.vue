@@ -55,6 +55,7 @@ const resources = computed(() => {
     { key: 'oxygen', name: '氧气', icon: '💨', value: r.oxygen, max: 1000 },
     { key: 'water', name: '水', icon: '💧', value: r.water, max: 800 },
     { key: 'food', name: '食物', icon: '🍎', value: r.food, max: 600 },
+    { key: 'repairParts', name: '维修零件', icon: '🔩', value: r.repairParts, max: r.maxRepairParts },
     { key: 'metal', name: '金属', icon: '⚙️', value: r.metal, max: 500 },
     { key: 'fuel', name: '燃料', icon: '⛽', value: r.fuel, max: 1000 },
     { key: 'waste', name: '废物', icon: '🗑️', value: r.waste, max: r.maxWaste },

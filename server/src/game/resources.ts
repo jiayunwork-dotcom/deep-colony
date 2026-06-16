@@ -11,6 +11,13 @@ import {
   OXYGEN_PER_PERSON,
   WASTE_PER_PERSON,
   TECH_POINTS_PER_LEVEL,
+  FACTORY_METAL_PER_LEVEL,
+  FACTORY_PARTS_PER_LEVEL,
+  REPAIR_PARTS_PER_MODULE,
+  REPAIR_AMOUNT_WITH_PARTS,
+  COMMUNICATION_SCAN_RANGE,
+  COMMUNICATION_RESOURCE_BONUS_CHANCE,
+  COMMUNICATION_CALL_INTERVAL,
 } from '@deep-colony/shared';
 import { addLog, calculateModuleEfficiency } from './state';
 
@@ -39,12 +46,18 @@ export function processResourceProduction(state: GameState): void {
   const population = activeColonists.length;
 
   const lifeSupportEff = calculateModuleEfficiency(state.modules.lifeSupport, state.colonists);
-  const oxygenProduced = state.modules.lifeSupport.powerLevel * OXYGEN_PRODUCTION_PER_LEVEL * lifeSupportEff;
+  let oxygenProduced = state.modules.lifeSupport.powerLevel * OXYGEN_PRODUCTION_PER_LEVEL * lifeSupportEff;
+  if (state.techTree.efficientOxygenCycler?.researched) {
+    oxygenProduced *= 1 + state.techTree.efficientOxygenCycler.effect.value;
+  }
   state.resources.oxygen += oxygenProduced;
 
   const waterCycleEff = calculateModuleEfficiency(state.modules.waterCycle, state.colonists);
   const waterConsumed = population * WATER_PER_PERSON;
-  const recoveryRate = BASE_WATER_RECOVERY + state.modules.waterCycle.powerLevel * WATER_RECOVERY_PER_LEVEL;
+  let recoveryRate = BASE_WATER_RECOVERY + state.modules.waterCycle.powerLevel * WATER_RECOVERY_PER_LEVEL;
+  if (state.techTree.distillationPurification?.researched) {
+    recoveryRate += state.techTree.distillationPurification.effect.value;
+  }
   const waterRecovered = waterConsumed * recoveryRate * waterCycleEff;
   state.resources.water += waterRecovered - waterConsumed;
   if (state.resources.water < 0) state.resources.water = 0;
@@ -76,8 +89,82 @@ export function processResourceProduction(state: GameState): void {
   const techPointsGained = state.modules.laboratory.powerLevel * TECH_POINTS_PER_LEVEL * labEff;
   state.techPoints += techPointsGained;
 
-  addLog(state, `本回合产出: 氧气+${oxygenProduced.toFixed(0)}, 食物+${foodProduced.toFixed(0)}, 科技点+${techPointsGained.toFixed(1)}`, 'info');
-  addLog(state, `本回合消耗: 燃料-${fuelConsumed.toFixed(0)}, 人口${population}人`, 'info');
+  const factoryEff = calculateModuleEfficiency(state.modules.factory, state.colonists);
+  let metalConsumed = state.modules.factory.powerLevel * FACTORY_METAL_PER_LEVEL * factoryEff;
+  let partsProduced = state.modules.factory.powerLevel * FACTORY_PARTS_PER_LEVEL * factoryEff;
+  if (state.techTree.precisionManufacturing?.researched) {
+    partsProduced *= 1 + state.techTree.precisionManufacturing.effect.value;
+  }
+  const actualMetalConsumed = Math.min(metalConsumed, state.resources.metal);
+  const actualPartsProduced = partsProduced * (state.resources.metal > 0 ? actualMetalConsumed / metalConsumed : 0);
+  state.resources.metal -= actualMetalConsumed;
+  state.resources.repairParts = Math.min(
+    state.resources.maxRepairParts,
+    state.resources.repairParts + actualPartsProduced
+  );
+
+  if (state.techTree.metalMolecularReconstruction?.researched) {
+    state.resources.metal += state.techTree.metalMolecularReconstruction.effect.value;
+  }
+  if (state.techTree.bioCycleReactor?.researched && state.resources.waste > 0) {
+    const converted = Math.min(state.resources.waste, state.resources.waste * state.techTree.bioCycleReactor.effect.value);
+    state.resources.waste -= converted;
+    state.resources.food += converted;
+    addLog(state, `生物反应堆将 ${converted.toFixed(0)} 废物转化为食物`, 'success');
+  }
+
+  processFactoryRepairs(state);
+
+  const commEff = calculateModuleEfficiency(state.modules.communication, state.colonists);
+  processCommunication(state, commEff);
+
+  addLog(state, `本回合产出: 氧气+${oxygenProduced.toFixed(0)}, 食物+${foodProduced.toFixed(0)}, 科技点+${techPointsGained.toFixed(1)}, 零件+${actualPartsProduced.toFixed(0)}`, 'info');
+  addLog(state, `本回合消耗: 燃料-${fuelConsumed.toFixed(0)}, 金属-${actualMetalConsumed.toFixed(0)}, 人口${population}人`, 'info');
+}
+
+function processFactoryRepairs(state: GameState): void {
+  const damagedModules = Object.values(state.modules).filter(
+    m => m.durability < m.maxDurability && m.durability > 0
+  );
+
+  if (damagedModules.length === 0 || state.resources.repairParts <= 0) return;
+
+  damagedModules.sort((a, b) => a.durability - b.durability);
+
+  for (const module of damagedModules) {
+    if (state.resources.repairParts < REPAIR_PARTS_PER_MODULE) break;
+
+    state.resources.repairParts -= REPAIR_PARTS_PER_MODULE;
+    const previousDurability = module.durability;
+    module.durability = Math.min(module.maxDurability, module.durability + REPAIR_AMOUNT_WITH_PARTS);
+    addLog(state, `工厂修复了 ${module.name}，耐久度 ${previousDurability.toFixed(0)} → ${module.durability.toFixed(0)}`, 'success');
+  }
+}
+
+function processCommunication(state: GameState, efficiency: number): void {
+  if (efficiency <= 0) return;
+
+  if (Math.random() < COMMUNICATION_RESOURCE_BONUS_CHANCE * efficiency) {
+    const resourceTypes = ['food', 'metal', 'fuel', 'water'];
+    const type = resourceTypes[Math.floor(Math.random() * resourceTypes.length)] as 'food' | 'metal' | 'fuel' | 'water';
+    const amount = Math.floor((15 + Math.random() * 25) * efficiency);
+    const names: Record<string, string> = { food: '食物', metal: '金属', fuel: '燃料', water: '水' };
+    state.resources[type] += amount;
+    addLog(state, `📡 通信模块与母星联络成功，获得 ${amount} 单位${names[type]}补给`, 'success');
+  }
+
+  const scanDistance = Math.floor(COMMUNICATION_SCAN_RANGE * efficiency);
+  const current = state.starMap.currentDistance;
+  const dangerousZones: number[] = [];
+  for (let i = 1; i <= 5; i++) {
+    const dist = current + i * 20;
+    if (dist < current + scanDistance && Math.random() < 0.2) {
+      dangerousZones.push(Math.floor(dist));
+    }
+  }
+  if (dangerousZones.length > 0 && efficiency > 0.3) {
+    addLog(state, `📡 通信扫描警告: 在距离 ${dangerousZones.join(', ')} 附近探测到太空碎片，请留意防御系统`, 'warning');
+  }
 }
 
 export function processColonistStatus(state: GameState): void {
@@ -129,19 +216,27 @@ export function processColonistStatus(state: GameState): void {
   }
 
   const quartersEff = calculateModuleEfficiency(state.modules.quarters, state.colonists);
-  if (quartersEff > 0.5) {
+  let moraleBonus = 0;
+  if (state.techTree.psychologicalCounseling?.researched) {
+    moraleBonus = state.techTree.psychologicalCounseling.effect.value;
+  }
+  if (quartersEff > 0.5 || moraleBonus > 0) {
     for (const colonist of activeColonists) {
       if (colonist.health > 0) {
-        colonist.morale += 1 * quartersEff;
+        colonist.morale += 1 * quartersEff + moraleBonus;
       }
     }
   }
 
   const medicalEff = calculateModuleEfficiency(state.modules.medicalBay, state.colonists);
+  let healMultiplier = 1;
+  if (state.techTree.nanoMedicalBots?.researched) {
+    healMultiplier = 1 + state.techTree.nanoMedicalBots.effect.value;
+  }
   if (medicalEff > 0) {
     for (const colonist of activeColonists) {
       if (colonist.health > 0 && colonist.health < colonist.maxHealth && !colonist.isInfected) {
-        colonist.health += 1 * medicalEff;
+        colonist.health += 1 * medicalEff * healMultiplier;
       }
     }
   }

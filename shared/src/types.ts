@@ -54,6 +54,8 @@ export interface Resources {
   fuel: number;
   electricity: number;
   maxElectricity: number;
+  repairParts: number;
+  maxRepairParts: number;
   waste: number;
   maxWaste: number;
 }
@@ -111,7 +113,15 @@ export interface TechEffect {
     | 'cryoChambers'
     | 'shieldUpgrade'
     | 'engineEfficiency'
-    | 'warpDrive';
+    | 'warpDrive'
+    | 'oxygenBonus'
+    | 'factoryEfficiency'
+    | 'waterRecoveryBonus'
+    | 'medicalEfficiency'
+    | 'moraleBonus'
+    | 'defenseEfficiency'
+    | 'metalRegeneration'
+    | 'wasteRecycling';
   value: number;
 }
 

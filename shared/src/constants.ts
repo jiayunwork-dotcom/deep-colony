@@ -52,6 +52,8 @@ export const INITIAL_RESOURCES = {
   fuel: 800,
   electricity: 0,
   maxElectricity: 25,
+  repairParts: 50,
+  maxRepairParts: 300,
   waste: 0,
   maxWaste: 500,
 };
@@ -125,3 +127,12 @@ export const PLAYER_MODULES_PER_PLAYER_MAX = 2;
 
 export const MIN_PLAYERS = 4;
 export const MAX_PLAYERS = 6;
+
+export const FACTORY_METAL_PER_LEVEL = 2;
+export const FACTORY_PARTS_PER_LEVEL = 3;
+export const REPAIR_PARTS_PER_MODULE = 5;
+export const REPAIR_AMOUNT_WITH_PARTS = 10;
+
+export const COMMUNICATION_SCAN_RANGE = 100;
+export const COMMUNICATION_RESOURCE_BONUS_CHANCE = 0.3;
+export const COMMUNICATION_CALL_INTERVAL = 5;

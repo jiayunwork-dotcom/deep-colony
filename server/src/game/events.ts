@@ -111,7 +111,11 @@ function createMeteorStrikeEvent(state: GameState): GameEvent {
   let damage = randomInt(METEOR_DAMAGE_MIN, METEOR_DAMAGE_MAX);
 
   const defenseEff = calculateModuleEfficiency(state.modules.defense, state.colonists);
-  damage = Math.floor(damage * (1 - defenseEff * 0.3));
+  let defenseReduction = defenseEff * 0.3;
+  if (state.techTree.reinforcedArmor?.researched) {
+    defenseReduction *= 1 + state.techTree.reinforcedArmor.effect.value;
+  }
+  damage = Math.floor(damage * (1 - defenseReduction));
 
   if (state.techTree.shieldUpgrade?.researched) {
     damage = Math.floor(damage * (1 - state.techTree.shieldUpgrade.effect.value));

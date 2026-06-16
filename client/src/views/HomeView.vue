@@ -73,9 +73,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGameStore } from '@/stores/game';
+import { storeToRefs } from 'pinia';
 
 const router = useRouter();
 const gameStore = useGameStore();
@@ -85,7 +86,7 @@ const joinPlayerName = ref('');
 const roomCode = ref('');
 const errorMsg = ref('');
 
-const rooms = gameStore.rooms;
+const { rooms } = storeToRefs(gameStore);
 
 onMounted(() => {
   loadRooms();
