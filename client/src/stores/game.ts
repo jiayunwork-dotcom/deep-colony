@@ -295,6 +295,49 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
+  async function resetSkillTree(colonistId: string, module: SkillTreeModuleType) {
+    const action: PlayerAction = {
+      type: 'resetSkillTree',
+      colonistId,
+      skillModule: module,
+    };
+
+    if (ws.value && ws.value.readyState === WebSocket.OPEN) {
+      ws.value.send(JSON.stringify({
+        type: 'action',
+        action,
+      }));
+
+      return new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('请求超时'));
+        }, 10000);
+
+        const checkState = () => {
+          if (gameState.value) {
+            const colonist = gameState.value.colonists[colonistId];
+            if (colonist) {
+              const tree = colonist.skillTree.trees[module];
+              if (tree) {
+                const allLocked = Object.values(tree.nodes).every(n => !n.unlocked);
+                if (allLocked) {
+                  clearTimeout(timeout);
+                  resolve();
+                  return;
+                }
+              }
+            }
+          }
+          setTimeout(checkState, 100);
+        };
+        checkState();
+      });
+    } else {
+      const data = await sendAction(action);
+      return data;
+    }
+  }
+
   function connectWebSocket(roomId: string) {
     if (ws.value) {
       ws.value.close();
@@ -364,6 +407,15 @@ export const useGameStore = defineStore('game', () => {
           pushNotification(
             'success',
             `🌟 ${data.colonistName} 解锁了 [${moduleName}-${data.nodeName}]`
+          );
+        }
+        break;
+      case 'skillTreeReset':
+        if (data.colonistName && data.module) {
+          const moduleName = SKILL_TREE_MODULE_NAMES[data.module as SkillTreeModuleType] || data.module;
+          pushNotification(
+            'warning',
+            `🔄 ${data.colonistName} 重置了 [${moduleName}] 技能树`
           );
         }
         break;
@@ -443,6 +495,7 @@ export const useGameStore = defineStore('game', () => {
     changeShiftMode,
     reassignShiftGroup,
     unlockSkillNode,
+    resetSkillTree,
     connectWebSocket,
     sendChat,
     disconnectWebSocket,

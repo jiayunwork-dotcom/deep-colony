@@ -139,6 +139,8 @@ export function applyPlayerAction(state: GameState, playerId: string, action: Pl
       return handleReassignShiftGroup(state, playerId, action);
     case 'unlockSkillNode':
       return handleUnlockSkillNode(state, playerId, action);
+    case 'resetSkillTree':
+      return handleResetSkillTree(state, playerId, action);
     default:
       return false;
   }
@@ -472,6 +474,23 @@ function handleUnlockSkillNode(state: GameState, playerId: string, action: Playe
     action.colonistId,
     action.skillModule as SkillTreeModuleType,
     action.skillNodeId
+  );
+
+  if (result.success) {
+    state.players[playerId].lastActionTurn = state.turn;
+  }
+
+  return result.success;
+}
+
+function handleResetSkillTree(state: GameState, playerId: string, action: PlayerAction): boolean {
+  if (!action.colonistId || !action.skillModule) return false;
+
+  const { resetSkillTree } = require('./skillTree');
+  const result = resetSkillTree(
+    state,
+    action.colonistId,
+    action.skillModule as SkillTreeModuleType
   );
 
   if (result.success) {

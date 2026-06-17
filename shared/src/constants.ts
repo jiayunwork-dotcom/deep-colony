@@ -172,3 +172,5 @@ export const SHIFT_GROUP_NAMES: Record<string, string> = {
 };
 
 export const UNDERSTAFFED_ALARM_RATIO = 0.5;
+
+export const SKILL_RESET_PENALTY_RATE = 0.3;

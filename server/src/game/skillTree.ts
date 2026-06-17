@@ -15,6 +15,7 @@ import {
   createSkillNode,
   MAX_SKILL_EFFECT_BONUS,
   SKILL_TREE_MODULE_NAMES,
+  SKILL_RESET_PENALTY_RATE,
 } from '@deep-colony/shared';
 import { addLog } from './state';
 
@@ -72,12 +73,16 @@ export function canUnlockNode(
     const basicNodes = Object.values(tree.nodes).filter(n => n.tier === 'basic');
     const unlockedBasic = basicNodes.filter(n => n.unlocked).length;
     if (unlockedBasic < 2) return false;
+
+    const advancedNodes = Object.values(tree.nodes).filter(n => n.tier === 'advanced');
+    const unlockedAdvanced = advancedNodes.filter(n => n.unlocked).length;
+    if (unlockedAdvanced >= 1) return false;
   }
 
   if (node.tier === 'master') {
     const advancedNodes = Object.values(tree.nodes).filter(n => n.tier === 'advanced');
-    const allAdvancedUnlocked = advancedNodes.every(n => n.unlocked);
-    if (!allAdvancedUnlocked) return false;
+    const anyAdvancedUnlocked = advancedNodes.some(n => n.unlocked);
+    if (!anyAdvancedUnlocked) return false;
   }
 
   return true;
@@ -121,6 +126,61 @@ export function unlockSkillNode(
   );
 
   return { success: true, node };
+}
+
+export function resetSkillTree(
+  state: GameState,
+  colonistId: string,
+  module: SkillTreeModuleType
+): { success: boolean; penalty?: number; remainingExp?: number; error?: string } {
+  const colonist = state.colonists[colonistId];
+  if (!colonist) {
+    return { success: false, error: '殖民者不存在' };
+  }
+
+  const tree = colonist.skillTree.trees[module];
+  if (!tree) {
+    return { success: false, error: '技能树模块不存在' };
+  }
+
+  const hasUnlockedNodes = Object.values(tree.nodes).some(n => n.unlocked);
+  if (!hasUnlockedNodes) {
+    return { success: false, error: '该模块技能树没有已解锁的节点' };
+  }
+
+  const currentExp = tree.totalExp;
+  const penalty = Math.floor(currentExp * SKILL_RESET_PENALTY_RATE);
+  const remainingExp = currentExp - penalty;
+
+  for (const node of Object.values(tree.nodes)) {
+    node.unlocked = false;
+  }
+
+  tree.totalExp = remainingExp;
+
+  addLog(
+    state,
+    `🔄 ${colonist.name} 重置了 [${SKILL_TREE_MODULE_NAMES[module]}] 技能树`,
+    'warning'
+  );
+
+  return { success: true, penalty, remainingExp };
+}
+
+export function isNodeMutuallyExclusive(
+  colonist: Colonist,
+  module: SkillTreeModuleType,
+  nodeId: string
+): boolean {
+  const tree = colonist.skillTree.trees[module];
+  if (!tree) return false;
+
+  const node = tree.nodes[nodeId];
+  if (!node || node.tier !== 'advanced') return false;
+  if (node.unlocked) return false;
+
+  const advancedNodes = Object.values(tree.nodes).filter(n => n.tier === 'advanced');
+  return advancedNodes.some(n => n.id !== nodeId && n.unlocked);
 }
 
 export interface SkillEffectSummary {

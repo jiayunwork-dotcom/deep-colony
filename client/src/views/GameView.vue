@@ -22,6 +22,7 @@
     <div v-if="gameState" class="game-main">
       <div class="left-sidebar">
         <ResourcePanel />
+        <CrewSkillsOverview v-if="gameState" :game-state="gameState" />
         <StarMapPanel />
       </div>
 
@@ -77,6 +78,7 @@ import StarMapPanel from '@/components/StarMapPanel.vue';
 import PlayerPanel from '@/components/PlayerPanel.vue';
 import TechPanel from '@/components/TechPanel.vue';
 import ChatPanel from '@/components/ChatPanel.vue';
+import CrewSkillsOverview from '@/components/crew/CrewSkillsOverview.vue';
 import type { ModuleType, PlayerAction } from '@deep-colony/shared';
 
 const route = useRoute();

@@ -132,10 +132,7 @@ export const SKILL_TREE_DEFINITIONS: Record<SkillTreeModuleType, SkillNodeDefini
       tier: 'master',
       requiredExp: EXP_THRESHOLDS.master[0],
       effect: { type: 'efficiency', value: 15 },
-      prerequisites: [
-        generateSkillNodeId('mainEngine', 'advanced', 1),
-        generateSkillNodeId('mainEngine', 'advanced', 2),
-      ],
+      prerequisites: [],
     },
   ],
   medicalBay: [
@@ -191,10 +188,7 @@ export const SKILL_TREE_DEFINITIONS: Record<SkillTreeModuleType, SkillNodeDefini
       tier: 'master',
       requiredExp: EXP_THRESHOLDS.master[0],
       effect: { type: 'resistance', value: 20 },
-      prerequisites: [
-        generateSkillNodeId('medicalBay', 'advanced', 1),
-        generateSkillNodeId('medicalBay', 'advanced', 2),
-      ],
+      prerequisites: [],
     },
   ],
   laboratory: [
@@ -250,10 +244,7 @@ export const SKILL_TREE_DEFINITIONS: Record<SkillTreeModuleType, SkillNodeDefini
       tier: 'master',
       requiredExp: EXP_THRESHOLDS.master[0],
       effect: { type: 'expBonus', value: 25 },
-      prerequisites: [
-        generateSkillNodeId('laboratory', 'advanced', 1),
-        generateSkillNodeId('laboratory', 'advanced', 2),
-      ],
+      prerequisites: [],
     },
   ],
   farm: [
@@ -309,10 +300,7 @@ export const SKILL_TREE_DEFINITIONS: Record<SkillTreeModuleType, SkillNodeDefini
       tier: 'master',
       requiredExp: EXP_THRESHOLDS.master[0],
       effect: { type: 'efficiency', value: 15 },
-      prerequisites: [
-        generateSkillNodeId('farm', 'advanced', 1),
-        generateSkillNodeId('farm', 'advanced', 2),
-      ],
+      prerequisites: [],
     },
   ],
   defense: [
@@ -368,10 +356,7 @@ export const SKILL_TREE_DEFINITIONS: Record<SkillTreeModuleType, SkillNodeDefini
       tier: 'master',
       requiredExp: EXP_THRESHOLDS.master[0],
       effect: { type: 'resistance', value: 15 },
-      prerequisites: [
-        generateSkillNodeId('defense', 'advanced', 1),
-        generateSkillNodeId('defense', 'advanced', 2),
-      ],
+      prerequisites: [],
     },
   ],
   communication: [
@@ -427,10 +412,7 @@ export const SKILL_TREE_DEFINITIONS: Record<SkillTreeModuleType, SkillNodeDefini
       tier: 'master',
       requiredExp: EXP_THRESHOLDS.master[0],
       effect: { type: 'expBonus', value: 25 },
-      prerequisites: [
-        generateSkillNodeId('communication', 'advanced', 1),
-        generateSkillNodeId('communication', 'advanced', 2),
-      ],
+      prerequisites: [],
     },
   ],
 };

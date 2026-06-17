@@ -158,6 +158,7 @@
               v-if="colonist"
               :colonist="colonist"
               @unlock="handleUnlockSkillNode"
+              @reset="handleResetSkillTree"
             />
           </div>
         </div>
@@ -316,7 +317,11 @@ const hasUnlockableNodes = computed(() => {
   for (const module of SKILL_TREE_MODULES) {
     const tree = props.colonist.skillTree.trees[module];
     if (!tree) continue;
-    for (const node of Object.values(tree.nodes)) {
+    const nodes = Object.values(tree.nodes);
+    const basicNs = nodes.filter(n => n.tier === 'basic');
+    const advancedNs = nodes.filter(n => n.tier === 'advanced');
+
+    for (const node of nodes) {
       if (node.unlocked) continue;
       if (tree.totalExp < node.requiredExp) continue;
 
@@ -330,15 +335,15 @@ const hasUnlockableNodes = computed(() => {
       if (!prereqsMet) continue;
 
       if (node.tier === 'advanced') {
-        const basicNodes = Object.values(tree.nodes).filter(n => n.tier === 'basic');
-        const unlockedBasic = basicNodes.filter(n => n.unlocked).length;
+        const unlockedBasic = basicNs.filter(x => x.unlocked).length;
         if (unlockedBasic < 2) continue;
+        const unlockedAdvanced = advancedNs.filter(x => x.unlocked).length;
+        if (unlockedAdvanced >= 1) continue;
       }
 
       if (node.tier === 'master') {
-        const advancedNodes = Object.values(tree.nodes).filter(n => n.tier === 'advanced');
-        const allAdvancedUnlocked = advancedNodes.every(n => n.unlocked);
-        if (!allAdvancedUnlocked) continue;
+        const anyAdvancedUnlocked = advancedNs.some(x => x.unlocked);
+        if (!anyAdvancedUnlocked) continue;
       }
 
       return true;
@@ -354,6 +359,16 @@ async function handleUnlockSkillNode(module: SkillTreeModuleType, nodeId: string
     gameStore.pushNotification('success', `成功解锁技能节点！`);
   } catch (e: any) {
     gameStore.pushNotification('error', e.message || '解锁失败');
+  }
+}
+
+async function handleResetSkillTree(module: SkillTreeModuleType) {
+  if (!props.colonist) return;
+  try {
+    await gameStore.resetSkillTree(props.colonist.id, module);
+    gameStore.pushNotification('warning', `成功重置技能树！`);
+  } catch (e: any) {
+    gameStore.pushNotification('error', e.message || '重置失败');
   }
 }
 </script>

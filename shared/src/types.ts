@@ -237,7 +237,7 @@ export interface GameLogEntry {
 }
 
 export interface PlayerAction {
-  type: 'setPower' | 'assignCrew' | 'unassignCrew' | 'startResearch' | 'vote' | 'dockRelay' | 'slingshot' | 'changeShiftMode' | 'reassignShiftGroup' | 'unlockSkillNode';
+  type: 'setPower' | 'assignCrew' | 'unassignCrew' | 'startResearch' | 'vote' | 'dockRelay' | 'slingshot' | 'changeShiftMode' | 'reassignShiftGroup' | 'unlockSkillNode' | 'resetSkillTree';
   moduleId?: ModuleType;
   powerLevel?: number;
   colonistId?: string;

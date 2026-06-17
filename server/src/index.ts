@@ -156,6 +156,18 @@ fastify.post('/api/rooms/:roomId/action', async (request, reply) => {
     }
   }
 
+  if (action.type === 'resetSkillTree' && action.colonistId && action.skillModule) {
+    const colonist = result.state?.colonists[action.colonistId];
+    if (colonist) {
+      broadcastToRoom(roomId.toUpperCase(), {
+        type: 'skillTreeReset',
+        colonistId: action.colonistId,
+        colonistName: colonist.name,
+        module: action.skillModule,
+      });
+    }
+  }
+
   return { success: true, state: result.state };
 });
 
@@ -280,6 +292,18 @@ fastify.register(async (fastify) => {
                       nodeName: node.name,
                     });
                   }
+                }
+              }
+
+              if (data.action.type === 'resetSkillTree' && data.action.colonistId && data.action.skillModule) {
+                const colonist = result.state.colonists[data.action.colonistId];
+                if (colonist) {
+                  broadcastToRoom(upperRoomId, {
+                    type: 'skillTreeReset',
+                    colonistId: data.action.colonistId,
+                    colonistName: colonist.name,
+                    module: data.action.skillModule,
+                  });
                 }
               }
             }
