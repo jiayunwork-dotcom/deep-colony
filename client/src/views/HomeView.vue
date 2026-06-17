@@ -115,23 +115,29 @@ async function handleCreateRoom() {
   }
   isLoading.value = true;
   try {
-    console.log('开始创建房间，玩家名:', name);
+    console.log('[Home] 开始创建房间，玩家名:', name);
     const roomId = await gameStore.createRoom(name);
-    console.log('创建房间成功，roomId:', roomId);
+    console.log('[Home] 创建房间成功，roomId:', roomId, '类型:', typeof roomId);
     if (roomId) {
-      console.log('准备跳转到房间页面:', `/room/${roomId}`);
+      const targetPath = `/room/${roomId}`;
+      console.log('[Home] 准备跳转到:', targetPath);
       try {
-        await router.push(`/room/${roomId}`);
-        console.log('路由跳转成功');
+        await router.push(targetPath);
+        console.log('[Home] router.push 调用完成');
+        if (window.location.pathname !== targetPath) {
+          console.warn('[Home] 路由未更新，强制使用 location.href 跳转');
+          window.location.href = targetPath;
+        }
       } catch (routerErr: any) {
-        console.error('路由跳转失败:', routerErr);
-        showError(routerErr.message || '页面跳转失败');
+        console.error('[Home] 路由跳转失败:', routerErr);
+        console.warn('[Home] 尝试使用 location.href 强制跳转');
+        window.location.href = targetPath;
       }
     } else {
       showError('创建房间失败：未返回房间号');
     }
   } catch (e: any) {
-    console.error('创建房间错误:', e);
+    console.error('[Home] 创建房间错误:', e);
     showError(e.message || '创建房间失败');
   } finally {
     isLoading.value = false;

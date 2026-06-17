@@ -172,8 +172,21 @@ export async function handlePlayerAction(
   const state = await getGameState(roomId);
   if (!state) return { success: false, state: null, error: '房间不存在' };
 
+  const isHost = state.hostId === playerId;
+  const hostAllowedActions: PlayerAction['type'][] = [
+    'changeShiftMode',
+    'reassignShiftGroup',
+    'assignCrew',
+    'unassignCrew',
+    'setPower',
+  ];
+
   if (state.phase !== 'playing') {
-    return { success: false, state: null, error: '游戏未进行中' };
+    if (state.phase === 'waiting' && isHost && hostAllowedActions.includes(action.type)) {
+      // 房主在 waiting 阶段可以执行配置操作
+    } else {
+      return { success: false, state: null, error: '游戏未进行中' };
+    }
   }
 
   const success = applyPlayerAction(state, playerId, action);

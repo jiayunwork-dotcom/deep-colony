@@ -1,5 +1,5 @@
 <template>
-  <div :class="['module-card', { manageable: isManageable, damaged: isDamaged, critical: isCritical, emergency: isEmergency, understaffed: hasAlarm }]">
+  <div :class="['module-card', { manageable: isManageable, damaged: isDamaged, critical: isCritical, emergency: isEmergency, understaffed: hasAlarm, 'emergency-critical': isEmergencyCritical }]">
     <div class="module-header">
       <span class="module-name">{{ module.name }}</span>
       <span v-if="isManageable" class="manage-badge">管理中</span>
@@ -75,6 +75,7 @@ const isDamaged = computed(() => props.module.durability < 50);
 const isCritical = computed(() => props.module.durability < 30);
 const isEmergency = computed(() => props.module.durability > 0 && props.module.durability < EMERGENCY_DURABILITY_THRESHOLD);
 const hasAlarm = computed(() => props.module.shiftConfig?.hasAlarm ?? false);
+const isEmergencyCritical = computed(() => props.module.shiftConfig?.mode === 'flexible' && props.module.shiftConfig?.emergencyLevel === 'critical');
 
 const durabilityClass = computed(() => {
   if (props.module.durability < EMERGENCY_DURABILITY_THRESHOLD) return 'critical';
@@ -133,6 +134,23 @@ function setPower(level: number) {
   border-color: var(--accent-red);
   border-width: 2px;
   animation: understaffed-flash 1.2s infinite;
+}
+
+.module-card.emergency-critical {
+  border-color: var(--accent-red);
+  border-width: 3px;
+  animation: emergency-critical-flash 0.8s infinite;
+}
+
+@keyframes emergency-critical-flash {
+  0%, 100% {
+    border-color: var(--accent-red);
+    box-shadow: 0 0 12px rgba(255, 68, 102, 0.7), inset 0 0 8px rgba(255, 68, 102, 0.15);
+  }
+  50% {
+    border-color: #ff6688;
+    box-shadow: 0 0 28px rgba(255, 68, 102, 1), inset 0 0 15px rgba(255, 68, 102, 0.3);
+  }
 }
 
 @keyframes understaffed-flash {
