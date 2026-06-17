@@ -174,7 +174,7 @@
               <ValueBar :value="c.morale" />
             </td>
             <td class="col-fatigue">
-              <ValueBar :value="c.fatigue" :max="100" :color-scheme="'fatigue'" />
+              <ValueBar :value="c.fatigue ?? 0" :max="100" :color-scheme="'fatigue'" />
             </td>
             <td class="col-age">{{ c.age }}</td>
             <td v-for="s in skills" :key="'skill-' + s.key" class="col-skill">
@@ -280,7 +280,7 @@ const stats = computed(() => {
   for (const c of list) {
     sumH += c.health;
     sumM += c.morale;
-    sumF += c.fatigue;
+    sumF += c.fatigue ?? 0;
     statusCounts[getColonistStatus(c) as keyof typeof statusCounts]++;
   }
   return {
@@ -337,7 +337,7 @@ function sortCompare(a: Colonist, b: Colonist): number {
     case 'name': va = a.name; vb = b.name; break;
     case 'health': va = a.health; vb = b.health; break;
     case 'morale': va = a.morale; vb = b.morale; break;
-    case 'fatigue': va = a.fatigue; vb = b.fatigue; break;
+    case 'fatigue': va = a.fatigue ?? 0; vb = b.fatigue ?? 0; break;
     case 'age': va = a.age; vb = b.age; break;
     case 'engineering':
     case 'medical':

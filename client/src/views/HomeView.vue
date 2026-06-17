@@ -13,8 +13,8 @@
             <label>你的名字</label>
             <input v-model="playerName" placeholder="输入你的名字" />
           </div>
-          <button class="btn btn-primary" @click="handleCreateRoom" :disabled="!playerName.trim()">
-            创建新房间
+          <button class="btn btn-primary" @click="handleCreateRoom" :disabled="!playerName.trim() || isLoading">
+            {{ isLoading ? '创建中...' : '创建新房间' }}
           </button>
         </div>
 
@@ -85,6 +85,7 @@ const playerName = ref(gameStore.playerName || '');
 const joinPlayerName = ref('');
 const roomCode = ref('');
 const errorMsg = ref('');
+const isLoading = ref(false);
 
 const { rooms } = storeToRefs(gameStore);
 
@@ -106,20 +107,28 @@ function phaseText(phase: string): string {
 }
 
 async function handleCreateRoom() {
+  if (isLoading.value) return;
+  isLoading.value = true;
   try {
     const roomId = await gameStore.createRoom(playerName.value);
     router.push(`/room/${roomId}`);
   } catch (e: any) {
     showError(e.message || '创建房间失败');
+  } finally {
+    isLoading.value = false;
   }
 }
 
 async function handleJoinRoom() {
+  if (isLoading.value) return;
+  isLoading.value = true;
   try {
     await gameStore.joinRoom(roomCode.value.toUpperCase(), joinPlayerName.value);
     router.push(`/room/${roomCode.value.toUpperCase()}`);
   } catch (e: any) {
     showError(e.message || '加入房间失败');
+  } finally {
+    isLoading.value = false;
   }
 }
 

@@ -26,7 +26,7 @@
     <div class="shift-config" v-if="isManageable">
       <select
         class="shift-mode-select"
-        :value="module.shiftConfig.mode"
+        :value="shiftConfig.mode"
         @change="onShiftModeChange"
       >
         <option value="continuous">连续工作</option>
@@ -35,14 +35,14 @@
       </select>
     </div>
 
-    <div class="shift-info" v-if="module.shiftConfig.mode !== 'continuous'">
-      <span class="current-shift" :class="'shift-' + module.shiftConfig.currentShift">
-        当前:{{ module.shiftConfig.currentShift }}班在岗
+    <div class="shift-info" v-if="shiftConfig.mode !== 'continuous'">
+      <span class="current-shift" :class="'shift-' + shiftConfig.currentShift">
+        当前:{{ shiftConfig.currentShift }}班在岗
       </span>
-      <span v-if="module.shiftConfig.mode === 'threeShift'" class="next-shift-countdown">
-        换班: {{ module.shiftConfig.turnsUntilNextShift }}回合
+      <span v-if="shiftConfig.mode === 'threeShift'" class="next-shift-countdown">
+        换班: {{ shiftConfig.turnsUntilNextShift }}回合
       </span>
-      <span v-if="module.shiftConfig.emergencyLevel === 'critical'" class="emergency-badge">
+      <span v-if="shiftConfig.emergencyLevel === 'critical'" class="emergency-badge">
         ⚠️ 紧急
       </span>
     </div>
@@ -52,13 +52,13 @@
       <span class="match-skill">{{ matchSkillName }}</span>
     </div>
 
-    <div v-if="module.shiftConfig.mode === 'threeShift'" class="three-shift-container">
+    <div v-if="shiftConfig.mode === 'threeShift'" class="three-shift-container">
       <div
         v-for="group in ['A', 'B', 'C'] as const"
         :key="group"
         class="shift-group"
         :class="{
-          'active': module.shiftConfig.currentShift === group,
+          'active': shiftConfig.currentShift === group,
           'drag-over': shiftDragState[group]?.isOver,
           'drag-over-valid': shiftDragState[group]?.isOver && shiftDragState[group]?.canDrop,
         }"
@@ -68,7 +68,7 @@
       >
         <div class="shift-group-header" :class="'shift-' + group">
           <span class="shift-group-name">{{ group }}班</span>
-          <span v-if="module.shiftConfig.currentShift === group" class="shift-on-duty">● 在岗</span>
+          <span v-if="shiftConfig.currentShift === group" class="shift-on-duty">● 在岗</span>
           <span v-else class="shift-resting">○ 休息</span>
         </div>
         <div class="shift-crew-list" :class="{ 'is-empty': getGroupCrew(group).length === 0 }">
@@ -86,14 +86,14 @@
             draggable="true"
             @dragstart="onCrewDragStart($event, c)"
             @dragend="onCrewDragEnd"
-            :title="`${c.name} - ${formatMatchEfficiency(c)} - 疲劳:${c.fatigue}%`"
+            :title="`${c.name} - 疲劳:${getFatigueValue(c)}%`"
           >
             <div class="chip-avatar">
               {{ c.name.slice(0, 1) }}
             </div>
             <span class="chip-name">{{ c.name.slice(0, 4) }}</span>
             <span class="chip-fatigue" :class="getFatigueClass(c)">
-              {{ c.fatigue }}
+              {{ getFatigueValue(c) }}
             </span>
           </div>
           <div v-if="getGroupCrew(group).length === 0" class="empty-hint">
@@ -118,14 +118,14 @@
         draggable="true"
         @dragstart="onCrewDragStart($event, c)"
         @dragend="onCrewDragEnd"
-        :title="`${c.name} - ${formatMatchEfficiency(c)} - 疲劳:${c.fatigue}%`"
+        :title="`${c.name} - 疲劳:${getFatigueValue(c)}%`"
       >
         <div class="chip-avatar">
           {{ c.name.slice(0, 1) }}
         </div>
         <span class="chip-name">{{ c.name.slice(0, 4) }}</span>
         <span class="chip-fatigue" :class="getFatigueClass(c)">
-          {{ c.fatigue }}
+          {{ getFatigueValue(c) }}
         </span>
         <span class="chip-efficiency" :class="getEfficiencyClass(c)">
           {{ formatEfficiencyShort(c) }}
@@ -170,7 +170,7 @@
 
 <script setup lang="ts">
 import { computed, reactive } from 'vue';
-import type { ShipModule, Colonist, SkillType, ModuleType, ShiftMode, ShiftGroup } from '@deep-colony/shared';
+import type { ShipModule, Colonist, SkillType, ModuleType, ShiftMode, ShiftGroup, ModuleShiftConfig } from '@deep-colony/shared';
 import {
   MODULE_SKILL_MATCH,
   MODULE_NAMES,
@@ -178,6 +178,15 @@ import {
   SKILL_EFFICIENCY,
   NON_SKILL_EFFICIENCY,
 } from '@deep-colony/shared';
+
+const DEFAULT_SHIFT_CONFIG: ModuleShiftConfig = {
+  mode: 'continuous',
+  currentShift: 'A',
+  turnsUntilNextShift: 3,
+  assignments: [],
+  emergencyLevel: 'normal',
+  hasAlarm: false,
+};
 
 const props = defineProps<{
   module: ShipModule;
@@ -226,8 +235,12 @@ const crewCountClass = computed(() => {
   return 'low';
 });
 
+const shiftConfig = computed<ModuleShiftConfig>(() => {
+  return props.module.shiftConfig || DEFAULT_SHIFT_CONFIG;
+});
+
 function getGroupCrew(group: ShiftGroup): Colonist[] {
-  const assignments = props.module.shiftConfig.assignments;
+  const assignments = shiftConfig.value.assignments || [];
   const colonistIds = assignments
     .filter(a => a.group === group)
     .map(a => a.colonistId);
@@ -263,9 +276,14 @@ function getEfficiencyClass(c: Colonist): string {
 }
 
 function getFatigueClass(c: Colonist): string {
-  if (c.fatigue >= 80) return 'danger';
-  if (c.fatigue >= 50) return 'warning';
+  const f = c.fatigue ?? 0;
+  if (f >= 80) return 'danger';
+  if (f >= 50) return 'warning';
   return 'good';
+}
+
+function getFatigueValue(c: Colonist): number {
+  return c.fatigue ?? 0;
 }
 
 function isColonistEligible(c: Colonist): boolean {

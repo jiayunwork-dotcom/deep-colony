@@ -53,20 +53,32 @@ export const useGameStore = defineStore('game', () => {
   async function fetchRooms() {
     try {
       const res = await fetch('/api/rooms');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       rooms.value = data.rooms || [];
     } catch (e) {
       console.error('Failed to fetch rooms:', e);
+      rooms.value = [];
     }
   }
 
   async function createRoom(name: string) {
-    const res = await fetch('/api/rooms', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ playerName: name, playerId: playerId.value || undefined }),
-    });
-    const data = await res.json();
+    let res: Response;
+    try {
+      res = await fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerName: name, playerId: playerId.value || undefined }),
+      });
+    } catch (e) {
+      throw new Error('无法连接到服务器，请检查网络或后端服务是否启动');
+    }
+    let data: any;
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error(`服务器响应异常 (HTTP ${res.status})`);
+    }
     if (data.roomId && data.playerId) {
       setPlayerInfo(data.playerId, name);
       currentRoomId.value = data.roomId;
@@ -77,12 +89,22 @@ export const useGameStore = defineStore('game', () => {
   }
 
   async function joinRoom(roomId: string, name: string) {
-    const res = await fetch(`/api/rooms/${roomId}/join`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ playerName: name, playerId: playerId.value || undefined }),
-    });
-    const data = await res.json();
+    let res: Response;
+    try {
+      res = await fetch(`/api/rooms/${roomId}/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerName: name, playerId: playerId.value || undefined }),
+      });
+    } catch (e) {
+      throw new Error('无法连接到服务器，请检查网络或后端服务是否启动');
+    }
+    let data: any;
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error(`服务器响应异常 (HTTP ${res.status})`);
+    }
     if (data.error) throw new Error(data.error);
     setPlayerInfo(data.playerId, name);
     currentRoomId.value = roomId;

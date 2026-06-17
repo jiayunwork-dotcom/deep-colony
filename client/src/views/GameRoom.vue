@@ -37,18 +37,13 @@
       <div class="info-panel">
         <div v-if="gameState.phase === 'waiting'" class="waiting-info">
           <h3>等待游戏开始</h3>
-          <p>至少需要 4 名玩家才能开始游戏</p>
           <div v-if="isHost" class="host-actions">
             <button
               class="btn btn-start"
               @click="handleStartGame"
-              :disabled="playersList.length < 4"
             >
               开始游戏
             </button>
-            <p v-if="playersList.length < 4" class="hint">
-              还需要 {{ 4 - playersList.length }} 名玩家
-            </p>
           </div>
           <div v-else class="spectator-info">
             <p>等待房主开始游戏...</p>

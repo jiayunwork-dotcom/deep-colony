@@ -34,7 +34,7 @@
               </div>
               <div class="stat-box">
                 <div class="stat-box-label">疲劳</div>
-                <ValueBar :value="colonist.fatigue" :max="100" :color-scheme="'fatigue'" />
+                <ValueBar :value="colonist.fatigue ?? 0" :max="100" :color-scheme="'fatigue'" />
               </div>
             </div>
             <div class="stat-grid" style="grid-template-columns: 1fr 1fr;">
@@ -208,8 +208,9 @@ const fatigueStatusText = computed(() => {
   if (!c) return '';
   if (c.isCollapsed) return '💀 已倒下';
   if (c.isOverworked) return '⚠️ 过劳';
-  if (c.fatigue >= 60) return '😓 疲劳';
-  if (c.fatigue >= 30) return '😊 正常';
+  const f = c.fatigue ?? 0;
+  if (f >= 60) return '😓 疲劳';
+  if (f >= 30) return '😊 正常';
   return '✨ 精力充沛';
 });
 
@@ -218,7 +219,8 @@ const fatigueStatusClass = computed(() => {
   if (!c) return '';
   if (c.isCollapsed) return 'danger';
   if (c.isOverworked) return 'warning';
-  if (c.fatigue >= 60) return 'warning';
+  const f = c.fatigue ?? 0;
+  if (f >= 60) return 'warning';
   return 'good';
 });
 
