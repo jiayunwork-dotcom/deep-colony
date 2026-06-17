@@ -9,6 +9,7 @@ import type {
   TurnShiftUpdate,
   ColonistStatusUpdate,
   ShiftProcessingResult,
+  SkillTreeModuleType,
 } from '@deep-colony/shared';
 import {
   MODULE_SKILL_MATCH,
@@ -23,19 +24,25 @@ import {
   THREESHIFT_TURNS_PER_SHIFT,
   UNDERSTAFFED_ALARM_RATIO,
   EMERGENCY_DURABILITY_THRESHOLD,
+  BASE_EXP_PER_TURN,
+  THREESHIFT_WORKING_EXP_MULTIPLIER,
+  FLEXIBLE_EMERGENCY_EXP_MULTIPLIER,
+  SKILL_TREE_MODULES,
 } from '@deep-colony/shared';
 import { addLog } from './state';
+import type { SkillProcessingResult } from './skillTree';
+import { addExperience, getExpBonus, getFatigueRecoveryBonus } from './skillTree';
 
 const SHIFT_CYCLE: ShiftGroup[] = ['A', 'B', 'B', 'C', 'C', 'A'];
 
-export function processAllShifts(state: GameState): ShiftProcessingResult {
+export function processAllShifts(state: GameState, skillResult?: SkillProcessingResult): ShiftProcessingResult {
   const result: ShiftProcessingResult = {
     shiftUpdates: [],
     statusUpdates: [],
   };
 
   for (const module of Object.values(state.modules)) {
-    const moduleResult = processModuleShifts(state, module);
+    const moduleResult = processModuleShifts(state, module, skillResult);
     result.shiftUpdates.push(...moduleResult.shiftUpdates);
     result.statusUpdates.push(...moduleResult.statusUpdates);
   }
@@ -43,9 +50,48 @@ export function processAllShifts(state: GameState): ShiftProcessingResult {
   return result;
 }
 
+function calculateExpGain(
+  colonist: Colonist,
+  module: ShipModule,
+  isWorking: boolean,
+  skillResult?: SkillProcessingResult
+): number {
+  if (!isWorking) return 0;
+
+  const skillModule = module.id as SkillTreeModuleType;
+  if (!SKILL_TREE_MODULES.includes(skillModule)) return 0;
+
+  const { calculateModuleEfficiency } = require('./state');
+  const efficiency = calculateModuleEfficiency(module, { [colonist.id]: colonist });
+
+  let exp = BASE_EXP_PER_TURN * efficiency;
+
+  const shiftMode = module.shiftConfig.mode;
+  if (shiftMode === 'threeShift') {
+    const currentShift = module.shiftConfig.currentShift;
+    const assignment = module.shiftConfig.assignments.find(a => a.colonistId === colonist.id);
+    if (assignment?.group === currentShift) {
+      exp *= THREESHIFT_WORKING_EXP_MULTIPLIER;
+    }
+  } else if (shiftMode === 'flexible' && module.shiftConfig.emergencyLevel === 'critical') {
+    exp *= FLEXIBLE_EMERGENCY_EXP_MULTIPLIER;
+  }
+
+  if (skillResult) {
+    const effects = skillResult.colonistEffects[colonist.id];
+    if (effects) {
+      const expBonus = getExpBonus(effects, skillModule);
+      exp *= (1 + expBonus / 100);
+    }
+  }
+
+  return Math.round(exp);
+}
+
 function processModuleShifts(
   state: GameState,
-  module: ShipModule
+  module: ShipModule,
+  skillResult?: SkillProcessingResult
 ): ShiftProcessingResult {
   const result: ShiftProcessingResult = {
     shiftUpdates: [],
@@ -65,13 +111,13 @@ function processModuleShifts(
 
   switch (shiftMode) {
     case 'continuous':
-      processContinuousMode(state, module, result);
+      processContinuousMode(state, module, result, skillResult);
       break;
     case 'threeShift':
-      processThreeShiftMode(state, module, result);
+      processThreeShiftMode(state, module, result, skillResult);
       break;
     case 'flexible':
-      processFlexibleMode(state, module, result);
+      processFlexibleMode(state, module, result, skillResult);
       break;
   }
 
@@ -116,19 +162,26 @@ function handleCollapsedColonist(
 function processContinuousMode(
   state: GameState,
   module: ShipModule,
-  result: ShiftProcessingResult
+  result: ShiftProcessingResult,
+  skillResult?: SkillProcessingResult
 ): void {
   const workingColonists = getActiveCrew(module, state);
 
   for (const colonist of workingColonists) {
-    updateColonistFatigue(colonist, CONTINUOUS_FATIGUE_PER_TURN, state, result);
+    updateColonistFatigue(colonist, CONTINUOUS_FATIGUE_PER_TURN, state, result, skillResult);
+
+    const expGain = calculateExpGain(colonist, module, true, skillResult);
+    if (expGain > 0 && SKILL_TREE_MODULES.includes(module.id as SkillTreeModuleType)) {
+      addExperience(colonist, module.id as SkillTreeModuleType, expGain);
+    }
   }
 }
 
 function processThreeShiftMode(
   state: GameState,
   module: ShipModule,
-  result: ShiftProcessingResult
+  result: ShiftProcessingResult,
+  skillResult?: SkillProcessingResult
 ): void {
   module.shiftConfig.turnsUntilNextShift--;
 
@@ -149,9 +202,14 @@ function processThreeShiftMode(
     const isWorking = assignment?.group === currentShift;
 
     if (isWorking) {
-      updateColonistFatigue(colonist, THREESHIFT_WORKING_FATIGUE_PER_TURN, state, result);
+      updateColonistFatigue(colonist, THREESHIFT_WORKING_FATIGUE_PER_TURN, state, result, skillResult);
+
+      const expGain = calculateExpGain(colonist, module, true, skillResult);
+      if (expGain > 0 && SKILL_TREE_MODULES.includes(module.id as SkillTreeModuleType)) {
+        addExperience(colonist, module.id as SkillTreeModuleType, expGain);
+      }
     } else {
-      updateColonistFatigue(colonist, -THREESHIFT_RESTING_RECOVERY_PER_TURN, state, result);
+      updateColonistFatigue(colonist, -THREESHIFT_RESTING_RECOVERY_PER_TURN, state, result, skillResult);
     }
   }
 
@@ -184,7 +242,8 @@ function rotateThreeShift(
 function processFlexibleMode(
   state: GameState,
   module: ShipModule,
-  result: ShiftProcessingResult
+  result: ShiftProcessingResult,
+  skillResult?: SkillProcessingResult
 ): void {
   const isEmergency = module.durability < EMERGENCY_DURABILITY_THRESHOLD;
   module.shiftConfig.emergencyLevel = isEmergency ? 'critical' : 'normal';
@@ -195,7 +254,12 @@ function processFlexibleMode(
 
   if (isEmergency) {
     for (const colonist of allAssigned) {
-      updateColonistFatigue(colonist, FLEXIBLE_EMERGENCY_FATIGUE_PER_TURN, state, result);
+      updateColonistFatigue(colonist, FLEXIBLE_EMERGENCY_FATIGUE_PER_TURN, state, result, skillResult);
+
+      const expGain = calculateExpGain(colonist, module, true, skillResult);
+      if (expGain > 0 && SKILL_TREE_MODULES.includes(module.id as SkillTreeModuleType)) {
+        addExperience(colonist, module.id as SkillTreeModuleType, expGain);
+      }
     }
     addLog(state, `⚠️ ${module.name} 进入紧急状态，全员上岗`, 'warning');
   } else {
@@ -205,10 +269,15 @@ function processFlexibleMode(
     const resting = sortedByFatigue.slice(requiredStaff);
 
     for (const colonist of working) {
-      updateColonistFatigue(colonist, FLEXIBLE_NORMAL_FATIGUE_PER_TURN, state, result);
+      updateColonistFatigue(colonist, FLEXIBLE_NORMAL_FATIGUE_PER_TURN, state, result, skillResult);
+
+      const expGain = calculateExpGain(colonist, module, true, skillResult);
+      if (expGain > 0 && SKILL_TREE_MODULES.includes(module.id as SkillTreeModuleType)) {
+        addExperience(colonist, module.id as SkillTreeModuleType, expGain);
+      }
     }
     for (const colonist of resting) {
-      updateColonistFatigue(colonist, -THREESHIFT_RESTING_RECOVERY_PER_TURN, state, result);
+      updateColonistFatigue(colonist, -THREESHIFT_RESTING_RECOVERY_PER_TURN, state, result, skillResult);
     }
   }
 
@@ -223,10 +292,21 @@ function updateColonistFatigue(
   colonist: Colonist,
   delta: number,
   state: GameState,
-  result: ShiftProcessingResult
+  result: ShiftProcessingResult,
+  skillResult?: SkillProcessingResult
 ): void {
+  let adjustedDelta = delta;
+
+  if (delta < 0 && skillResult) {
+    const effects = skillResult.colonistEffects[colonist.id];
+    if (effects && colonist.assignedModule) {
+      const recoveryBonus = getFatigueRecoveryBonus(effects, colonist.assignedModule);
+      adjustedDelta = delta * (1 + recoveryBonus / 100);
+    }
+  }
+
   const oldFatigue = colonist.fatigue;
-  colonist.fatigue = Math.max(0, Math.min(100, colonist.fatigue + delta));
+  colonist.fatigue = Math.max(0, Math.min(100, colonist.fatigue + adjustedDelta));
 
   let statusChanged = false;
 

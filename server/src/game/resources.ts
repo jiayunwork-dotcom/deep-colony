@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { GameState, Colonist } from '@deep-colony/shared';
+import { createInitialSkillTree } from './skillTree';
 import {
   OXYGEN_PRODUCTION_PER_LEVEL,
   BASE_WATER_RECOVERY,
@@ -268,6 +269,7 @@ export function processPopulationGrowth(state: GameState): void {
         infectionTurnsLeft: 0,
         isFrozen: false,
         statsHistory: [{ turn: state.turn, health: 100, morale: 80, fatigue: 0 }],
+        skillTree: createInitialSkillTree(),
       };
       state.colonists[newColonist.id] = newColonist;
       addLog(state, `有新殖民者诞生了！`, 'success');

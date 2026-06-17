@@ -245,6 +245,24 @@ fastify.register(async (fastify) => {
                   });
                 }
               }
+
+              if (data.action.type === 'unlockSkillNode' && data.action.colonistId && data.action.skillModule && data.action.skillNodeId) {
+                const colonist = result.state.colonists[data.action.colonistId];
+                if (colonist) {
+                  const tree = colonist.skillTree.trees[data.action.skillModule as keyof typeof colonist.skillTree.trees];
+                  const node = tree?.nodes[data.action.skillNodeId];
+                  if (node) {
+                    broadcastToRoom(upperRoomId, {
+                      type: 'skillUnlocked',
+                      colonistId: data.action.colonistId,
+                      colonistName: colonist.name,
+                      module: data.action.skillModule,
+                      nodeId: data.action.skillNodeId,
+                      nodeName: node.name,
+                    });
+                  }
+                }
+              }
             }
             break;
           case 'batchAction':

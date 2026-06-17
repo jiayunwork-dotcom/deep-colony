@@ -11,7 +11,9 @@ import type {
   ShiftGroup,
   TurnShiftUpdate,
   ColonistStatusUpdate,
+  SkillTreeModuleType,
 } from '@deep-colony/shared';
+import { SKILL_TREE_MODULE_NAMES } from '@deep-colony/shared';
 
 export const useGameStore = defineStore('game', () => {
   const playerId = ref<string>(localStorage.getItem('playerId') || '');
@@ -251,6 +253,48 @@ export const useGameStore = defineStore('game', () => {
     await sendAction(action);
   }
 
+  async function unlockSkillNode(colonistId: string, module: SkillTreeModuleType, nodeId: string) {
+    const action: PlayerAction = {
+      type: 'unlockSkillNode',
+      colonistId,
+      skillModule: module,
+      skillNodeId: nodeId,
+    };
+
+    if (ws.value && ws.value.readyState === WebSocket.OPEN) {
+      ws.value.send(JSON.stringify({
+        type: 'action',
+        action,
+      }));
+
+      return new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('请求超时'));
+        }, 10000);
+
+        const checkState = () => {
+          if (gameState.value) {
+            const colonist = gameState.value.colonists[colonistId];
+            if (colonist) {
+              const tree = colonist.skillTree.trees[module];
+              const node = tree?.nodes[nodeId];
+              if (node?.unlocked) {
+                clearTimeout(timeout);
+                resolve();
+                return;
+              }
+            }
+          }
+          setTimeout(checkState, 100);
+        };
+        checkState();
+      });
+    } else {
+      const data = await sendAction(action);
+      return data;
+    }
+  }
+
   function connectWebSocket(roomId: string) {
     if (ws.value) {
       ws.value.close();
@@ -312,6 +356,15 @@ export const useGameStore = defineStore('game', () => {
               colonist.isCollapsed = update.isCollapsed;
             }
           }
+        }
+        break;
+      case 'skillUnlocked':
+        if (data.colonistName && data.module && data.nodeName) {
+          const moduleName = SKILL_TREE_MODULE_NAMES[data.module as SkillTreeModuleType] || data.module;
+          pushNotification(
+            'success',
+            `🌟 ${data.colonistName} 解锁了 [${moduleName}-${data.nodeName}]`
+          );
         }
         break;
       case 'batchActionResult':
@@ -389,6 +442,7 @@ export const useGameStore = defineStore('game', () => {
     advanceTurn,
     changeShiftMode,
     reassignShiftGroup,
+    unlockSkillNode,
     connectWebSocket,
     sendChat,
     disconnectWebSocket,

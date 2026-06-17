@@ -28,6 +28,7 @@ import {
   OVERWORK_EFFICIENCY_PENALTY,
   THREESHIFT_TURNS_PER_SHIFT,
 } from '@deep-colony/shared';
+import { createInitialSkillTree } from './skillTree';
 
 const COLONIST_FIRST_NAMES = [
   '张伟', '王芳', '李明', '刘洋', '陈静', '杨帆', '赵磊', '黄丽', '周强', '吴敏',
@@ -114,6 +115,7 @@ export function createColonist(turn: number = 0): Colonist {
     isOverworked: false,
     isCollapsed: false,
     statsHistory: [{ turn, health, morale, fatigue }],
+    skillTree: createInitialSkillTree(),
   };
 }
 

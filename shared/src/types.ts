@@ -12,6 +12,40 @@ export type ModuleType =
 
 export type SkillType = 'engineering' | 'medical' | 'agriculture' | 'science' | 'military';
 
+export type SkillTreeModuleType = 'mainEngine' | 'medicalBay' | 'laboratory' | 'farm' | 'defense' | 'communication';
+
+export type SkillNodeTier = 'basic' | 'advanced' | 'master';
+
+export type SkillEffectType = 'efficiency' | 'resistance' | 'fatigueRecovery' | 'expBonus';
+
+export interface SkillEffect {
+  type: SkillEffectType;
+  value: number;
+  targetModule?: SkillTreeModuleType;
+}
+
+export interface SkillNode {
+  id: string;
+  name: string;
+  description: string;
+  tier: SkillNodeTier;
+  module: SkillTreeModuleType;
+  requiredExp: number;
+  unlocked: boolean;
+  prerequisites: string[];
+  effect: SkillEffect;
+}
+
+export interface ModuleSkillTree {
+  module: SkillTreeModuleType;
+  totalExp: number;
+  nodes: Record<string, SkillNode>;
+}
+
+export interface ColonistSkillTree {
+  trees: Record<SkillTreeModuleType, ModuleSkillTree>;
+}
+
 export type ResourceType = 'oxygen' | 'water' | 'food' | 'metal' | 'fuel' | 'electricity';
 
 export type GamePhase = 'waiting' | 'playing' | 'ended';
@@ -76,6 +110,7 @@ export interface Colonist {
   isOverworked: boolean;
   isCollapsed: boolean;
   statsHistory: ColonistStatsPoint[];
+  skillTree: ColonistSkillTree;
 }
 
 export interface Resources {
@@ -202,7 +237,7 @@ export interface GameLogEntry {
 }
 
 export interface PlayerAction {
-  type: 'setPower' | 'assignCrew' | 'unassignCrew' | 'startResearch' | 'vote' | 'dockRelay' | 'slingshot' | 'changeShiftMode' | 'reassignShiftGroup';
+  type: 'setPower' | 'assignCrew' | 'unassignCrew' | 'startResearch' | 'vote' | 'dockRelay' | 'slingshot' | 'changeShiftMode' | 'reassignShiftGroup' | 'unlockSkillNode';
   moduleId?: ModuleType;
   powerLevel?: number;
   colonistId?: string;
@@ -211,6 +246,8 @@ export interface PlayerAction {
   relayDistance?: number;
   shiftMode?: ShiftMode;
   shiftGroup?: ShiftGroup;
+  skillNodeId?: string;
+  skillModule?: SkillTreeModuleType;
 }
 
 export interface TurnShiftUpdate {

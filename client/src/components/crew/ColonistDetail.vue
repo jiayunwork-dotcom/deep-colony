@@ -21,6 +21,25 @@
         </header>
 
         <div v-if="colonist" class="modal-body">
+          <div class="detail-tabs">
+            <button
+              class="detail-tab"
+              :class="{ active: activeTab === 'status' }"
+              @click="activeTab = 'status'"
+            >
+              📊 属性状态
+            </button>
+            <button
+              class="detail-tab"
+              :class="{ active: activeTab === 'skills' }"
+              @click="activeTab = 'skills'"
+            >
+              🎯 技能树
+              <span v-if="hasUnlockableNodes" class="tab-notification">!</span>
+            </button>
+          </div>
+
+          <div v-show="activeTab === 'status'">
           <section class="detail-section">
             <h3 class="section-title">📊 属性状态</h3>
             <div class="stat-grid">
@@ -132,6 +151,15 @@
               </div>
             </div>
           </section>
+          </div>
+
+          <div v-show="activeTab === 'skills'">
+            <SkillTree
+              v-if="colonist"
+              :colonist="colonist"
+              @unlock="handleUnlockSkillNode"
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -139,12 +167,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import type {
   Colonist,
   ModuleType,
   SkillType,
   ShipModule,
+  SkillTreeModuleType,
 } from '@deep-colony/shared';
 import {
   MODULE_NAMES,
@@ -152,12 +181,15 @@ import {
   MODULE_SKILL_MATCH,
   SKILL_EFFICIENCY,
   NON_SKILL_EFFICIENCY,
+  SKILL_TREE_MODULES,
 } from '@deep-colony/shared';
 import StatusTag from './StatusTag.vue';
 import ValueBar from './ValueBar.vue';
 import StarRating from './StarRating.vue';
 import LineChart from './LineChart.vue';
 import RadarChart from './RadarChart.vue';
+import SkillTree from './SkillTree.vue';
+import { useGameStore } from '@/stores/game';
 
 const props = defineProps<{
   visible: boolean;
@@ -170,6 +202,9 @@ const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'assign', moduleId: ModuleType | null): void;
 }>();
+
+const gameStore = useGameStore();
+const activeTab = ref<'status' | 'skills'>('status');
 
 const skillAxes: { key: SkillType; label: string }[] = [
   { key: 'engineering', label: SKILL_NAMES.engineering },
@@ -275,9 +310,109 @@ function onAssignChange(e: Event) {
   if (target && !props.manageableModuleIds.includes(target)) return;
   emit('assign', target);
 }
+
+const hasUnlockableNodes = computed(() => {
+  if (!props.colonist) return false;
+  for (const module of SKILL_TREE_MODULES) {
+    const tree = props.colonist.skillTree.trees[module];
+    if (!tree) continue;
+    for (const node of Object.values(tree.nodes)) {
+      if (node.unlocked) continue;
+      if (tree.totalExp < node.requiredExp) continue;
+
+      let prereqsMet = true;
+      for (const prereqId of node.prerequisites) {
+        if (!tree.nodes[prereqId]?.unlocked) {
+          prereqsMet = false;
+          break;
+        }
+      }
+      if (!prereqsMet) continue;
+
+      if (node.tier === 'advanced') {
+        const basicNodes = Object.values(tree.nodes).filter(n => n.tier === 'basic');
+        const unlockedBasic = basicNodes.filter(n => n.unlocked).length;
+        if (unlockedBasic < 2) continue;
+      }
+
+      if (node.tier === 'master') {
+        const advancedNodes = Object.values(tree.nodes).filter(n => n.tier === 'advanced');
+        const allAdvancedUnlocked = advancedNodes.every(n => n.unlocked);
+        if (!allAdvancedUnlocked) continue;
+      }
+
+      return true;
+    }
+  }
+  return false;
+});
+
+async function handleUnlockSkillNode(module: SkillTreeModuleType, nodeId: string) {
+  if (!props.colonist) return;
+  try {
+    await gameStore.unlockSkillNode(props.colonist.id, module, nodeId);
+    gameStore.pushNotification('success', `成功解锁技能节点！`);
+  } catch (e: any) {
+    gameStore.pushNotification('error', e.message || '解锁失败');
+  }
+}
 </script>
 
 <style scoped>
+.detail-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 12px;
+}
+
+.detail-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  position: relative;
+}
+
+.detail-tab:hover {
+  border-color: var(--accent-cyan);
+  color: var(--text-primary);
+}
+
+.detail-tab.active {
+  background: rgba(0, 212, 255, 0.15);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+
+.tab-notification {
+  width: 16px;
+  height: 16px;
+  background: var(--accent-yellow);
+  color: #000;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
 .modal-mask {
   position: fixed;
   inset: 0;
