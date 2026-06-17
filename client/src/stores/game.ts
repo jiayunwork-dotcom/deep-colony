@@ -135,23 +135,17 @@ export const useGameStore = defineStore('game', () => {
   }
 
   async function sendAction(action: PlayerAction) {
-    if (!ws.value || ws.value.readyState !== WebSocket.OPEN) {
-      const res = await fetch(`/api/rooms/${currentRoomId.value}/action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ playerId: playerId.value, action }),
-      });
-      const data = await res.json();
-      if (data.state) {
-        gameState.value = data.state;
-      }
-      return data;
+    const res = await fetch(`/api/rooms/${currentRoomId.value}/action`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playerId: playerId.value, action }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    if (data.state) {
+      gameState.value = data.state;
     }
-
-    ws.value.send(JSON.stringify({
-      type: 'action',
-      action,
-    }));
+    return data;
   }
 
   function pushNotification(type: 'success' | 'error' | 'warning' | 'info', message: string) {

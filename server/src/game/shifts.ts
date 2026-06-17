@@ -327,6 +327,13 @@ export function changeModuleShiftMode(
     autoAssignShiftGroups(module, state);
   }
 
+  if (mode === 'flexible') {
+    const isEmergency = module.durability < EMERGENCY_DURABILITY_THRESHOLD;
+    module.shiftConfig.emergencyLevel = isEmergency ? 'critical' : 'normal';
+  } else {
+    module.shiftConfig.emergencyLevel = 'normal';
+  }
+
   addLog(state, `⚙️ ${module.name} 轮班模式变更为 ${getModeName(mode)}`, 'info');
 
   return true;

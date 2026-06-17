@@ -158,7 +158,11 @@ function getX(frac: number) {
   return padding.left + frac * chartW.value;
 }
 function getY(val: number) {
-  return padding.top + (1 - Math.max(0, Math.min(100, val)) / 100) * chartH.value;
+  const clamped = Math.max(0, Math.min(100, val));
+  const displayRange = 90;
+  const offset = 5;
+  const normalized = (clamped / 100) * displayRange + offset;
+  return padding.top + (1 - normalized / 100) * chartH.value;
 }
 function getGridY(i: number) {
   return getY((i - 1) * 25);
