@@ -198,7 +198,7 @@ const standbyCrew = computed<Colonist[]>(() => {
 const unassignedCount = computed(() => standbyCrew.value.length);
 
 function canManageModule(moduleId: ModuleType): boolean {
-  if (isHost.value && gameState.value?.phase === 'waiting') {
+  if (isHost.value) {
     return true;
   }
   return myModuleIds.value.includes(moduleId);

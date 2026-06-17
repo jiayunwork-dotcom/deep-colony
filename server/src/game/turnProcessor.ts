@@ -93,6 +93,7 @@ export function canPlayerModifyModule(
   const player = state.players[playerId];
   if (!player) return false;
   if (player.isAFK) return false;
+  if (state.hostId === playerId) return true;
   return player.assignedModules.includes(moduleId);
 }
 

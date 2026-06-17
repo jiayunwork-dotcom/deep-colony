@@ -197,10 +197,10 @@ const moraleLine = computed(() => {
 
 const fatigueLine = computed(() => {
   if (data.value.length < 2) return '';
-  if (!data.value.some(d => d.fatigue !== undefined)) return '';
   return data.value.map((d, i) => {
     const frac = i / (data.value.length - 1);
-    return `${getX(frac)},${getY(d.fatigue ?? 0)}`;
+    const val = d.fatigue !== undefined ? d.fatigue : 0;
+    return `${getX(frac)},${getY(val)}`;
   }).join(' ');
 });
 
@@ -220,7 +220,7 @@ function buildArea(key: 'health' | 'morale' | 'fatigue') {
 const healthArea = computed(() => buildArea('health'));
 const moraleArea = computed(() => buildArea('morale'));
 const fatigueArea = computed(() => {
-  if (!data.value.some(d => d.fatigue !== undefined)) return '';
+  if (data.value.length < 2) return '';
   return buildArea('fatigue');
 });
 
@@ -238,10 +238,10 @@ const moraleDots = computed(() => {
 });
 
 const fatigueDots = computed(() => {
-  return data.value.filter(d => d.fatigue !== undefined).map((d, i) => {
-    const allIdx = data.value.indexOf(d);
-    const frac = data.value.length <= 1 ? 0.5 : allIdx / (data.value.length - 1);
-    return { x: getX(frac), y: getY(d.fatigue ?? 0) };
+  return data.value.map((d, i) => {
+    const frac = data.value.length <= 1 ? 0.5 : i / (data.value.length - 1);
+    const val = d.fatigue !== undefined ? d.fatigue : 0;
+    return { x: getX(frac), y: getY(val) };
   });
 });
 </script>

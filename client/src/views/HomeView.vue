@@ -108,11 +108,30 @@ function phaseText(phase: string): string {
 
 async function handleCreateRoom() {
   if (isLoading.value) return;
+  const name = playerName.value.trim();
+  if (!name) {
+    showError('请输入你的名字');
+    return;
+  }
   isLoading.value = true;
   try {
-    const roomId = await gameStore.createRoom(playerName.value);
-    router.push(`/room/${roomId}`);
+    console.log('开始创建房间，玩家名:', name);
+    const roomId = await gameStore.createRoom(name);
+    console.log('创建房间成功，roomId:', roomId);
+    if (roomId) {
+      console.log('准备跳转到房间页面:', `/room/${roomId}`);
+      try {
+        await router.push(`/room/${roomId}`);
+        console.log('路由跳转成功');
+      } catch (routerErr: any) {
+        console.error('路由跳转失败:', routerErr);
+        showError(routerErr.message || '页面跳转失败');
+      }
+    } else {
+      showError('创建房间失败：未返回房间号');
+    }
   } catch (e: any) {
+    console.error('创建房间错误:', e);
     showError(e.message || '创建房间失败');
   } finally {
     isLoading.value = false;
