@@ -1,5 +1,7 @@
 import type { GameState, GameEvent, ModuleType } from '@deep-colony/shared';
 import { addLog, calculateModuleEfficiency, checkModuleEmergencyStatus } from './state';
+import type { SkillProcessingResult } from './skillTree';
+import { getModuleResistanceBonus } from './skillTree';
 import {
   METEOR_DAMAGE_MIN,
   METEOR_DAMAGE_MAX,
@@ -25,7 +27,7 @@ function getRandomModule(state: GameState): ModuleType {
   return modules[randomInt(0, modules.length - 1)];
 }
 
-export function triggerRandomEvent(state: GameState, isDisasterChain: boolean = false): void {
+export function triggerRandomEvent(state: GameState, isDisasterChain: boolean = false, skillResult?: SkillProcessingResult): void {
   const probability = isDisasterChain ? DISASTER_CHAIN_EVENT_PROBABILITY : BASE_EVENT_PROBABILITY;
   if (Math.random() > probability) return;
 
@@ -55,10 +57,10 @@ export function triggerRandomEvent(state: GameState, isDisasterChain: boolean = 
     }
   }
 
-  createEvent(state, selectedType as any);
+  createEvent(state, selectedType as any, skillResult);
 }
 
-export function createEvent(state: GameState, type: GameEvent['type']): GameEvent {
+export function createEvent(state: GameState, type: GameEvent['type'], skillResult?: SkillProcessingResult): GameEvent {
   let event: GameEvent;
 
   switch (type) {
@@ -101,7 +103,7 @@ export function createEvent(state: GameState, type: GameEvent['type']): GameEven
   }
 
   if (!event.needsVote) {
-    applyEventEffect(state, event);
+    applyEventEffect(state, event, skillResult);
     state.activeEvents.push(event);
   }
 
@@ -243,7 +245,7 @@ function createSupplyPodEvent(state: GameState): GameEvent {
   };
 }
 
-export function applyEventEffect(state: GameState, event: GameEvent): void {
+export function applyEventEffect(state: GameState, event: GameEvent, skillResult?: SkillProcessingResult): void {
   switch (event.type) {
     case 'meteorStrike':
       if (event.affectedModules) {
@@ -273,11 +275,24 @@ export function applyEventEffect(state: GameState, event: GameEvent): void {
       const infectedCount = Math.floor(Object.keys(state.colonists).length * 0.3);
       const colonistIds = Object.keys(state.colonists);
       const shuffled = colonistIds.sort(() => Math.random() - 0.5);
-      for (let i = 0; i < Math.min(infectedCount, shuffled.length); i++) {
+      let actualInfected = 0;
+      for (let i = 0; i < Math.min(infectedCount * 2, shuffled.length) && actualInfected < infectedCount; i++) {
         const colonist = state.colonists[shuffled[i]];
-        if (colonist.health > 0 && !colonist.isFrozen) {
-          colonist.isInfected = true;
-          colonist.infectionTurnsLeft = event.turnsRemaining;
+        if (colonist.health > 0 && !colonist.isFrozen && !colonist.isInfected) {
+          let infected = true;
+          const colonistEffects = skillResult?.colonistEffects[colonist.id];
+          if (colonistEffects) {
+            const resistance = getModuleResistanceBonus(colonistEffects, 'medicalBay');
+            if (Math.random() < resistance / 100) {
+              infected = false;
+              addLog(state, `💪 ${colonist.name} 凭借强健身躯抵抗住了感染`, 'success');
+            }
+          }
+          if (infected) {
+            colonist.isInfected = true;
+            colonist.infectionTurnsLeft = event.turnsRemaining;
+            actualInfected++;
+          }
         }
       }
       break;
@@ -289,8 +304,19 @@ export function applyEventEffect(state: GameState, event: GameEvent): void {
         for (const colonistId of event.affectedColonists) {
           const colonist = state.colonists[colonistId];
           if (colonist) {
-            colonist.isMutineer = true;
-            colonist.mutinyTurnsLeft = event.turnsRemaining;
+            let mutiny = true;
+            const colonistEffects = skillResult?.colonistEffects[colonist.id];
+            if (colonistEffects) {
+              const resistance = getModuleResistanceBonus(colonistEffects, 'defense');
+              if (Math.random() < resistance / 100) {
+                mutiny = false;
+                addLog(state, `🛡️ ${colonist.name} 保持冷静，没有参与叛变`, 'success');
+              }
+            }
+            if (mutiny) {
+              colonist.isMutineer = true;
+              colonist.mutinyTurnsLeft = event.turnsRemaining;
+            }
           }
         }
       }

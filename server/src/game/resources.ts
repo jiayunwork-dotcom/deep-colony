@@ -1,6 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { GameState, Colonist } from '@deep-colony/shared';
 import { createInitialSkillTree } from './skillTree';
+import type { SkillProcessingResult } from './skillTree';
+import { getModuleResistanceBonus } from './skillTree';
 import {
   OXYGEN_PRODUCTION_PER_LEVEL,
   BASE_WATER_RECOVERY,
@@ -168,13 +170,27 @@ function processCommunication(state: GameState, efficiency: number): void {
   }
 }
 
-export function processColonistStatus(state: GameState): void {
+export function processColonistStatus(state: GameState, skillResult?: SkillProcessingResult): void {
   const activeColonists = Object.values(state.colonists).filter(c => c.health > 0);
 
   for (const colonist of activeColonists) {
     if (colonist.isInfected && colonist.infectionTurnsLeft > 0) {
       const medicalEff = calculateModuleEfficiency(state.modules.medicalBay, state.colonists);
-      const damage = 5 * (1 - medicalEff * 0.5);
+      let damage = 5 * (1 - medicalEff * 0.5);
+
+      const colonistEffects = skillResult?.colonistEffects[colonist.id];
+      if (colonistEffects) {
+        const resistance = getModuleResistanceBonus(colonistEffects, 'medicalBay');
+        damage *= (1 - resistance / 100);
+
+        if (Math.random() < resistance / 100) {
+          colonist.infectionTurnsLeft = 0;
+          colonist.isInfected = false;
+          addLog(state, `💊 ${colonist.name} 凭借自身抵抗力战胜了感染`, 'success');
+          continue;
+        }
+      }
+
       colonist.health -= damage;
       colonist.infectionTurnsLeft--;
       if (colonist.infectionTurnsLeft <= 0) {

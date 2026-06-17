@@ -56,7 +56,7 @@ export function processTurn(state: GameState): ShiftProcessingResult {
     addLog(state, '☀️ 太阳风暴肆虐，本回合系统无法正常运作', 'warning');
   } else {
     processResourceProduction(state);
-    processColonistStatus(state);
+    processColonistStatus(state, skillResult);
     processPopulationGrowth(state);
     processAutoRepair(state);
     processTravel(state);
@@ -72,7 +72,7 @@ export function processTurn(state: GameState): ShiftProcessingResult {
     addLog(state, '⚠️ 灾难连锁：多模块濒临瘫痪，危机加剧', 'danger');
   }
 
-  triggerRandomEvent(state, isDisasterChain);
+  triggerRandomEvent(state, isDisasterChain, skillResult);
 
   if (checkVictory(state)) return shiftResult;
   if (checkDefeat(state)) return shiftResult;

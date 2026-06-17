@@ -151,8 +151,7 @@ export function calculateColonistSkillEffects(colonist: Colonist): SkillEffectSu
     for (const node of Object.values(tree.nodes)) {
       if (!node.unlocked) continue;
 
-      const effect = node.effect;
-      applyEffect(summary, effect, module);
+      applyEffect(summary, node.effect, module, node.tier);
     }
   }
 
@@ -162,30 +161,18 @@ export function calculateColonistSkillEffects(colonist: Colonist): SkillEffectSu
 function applyEffect(
   summary: SkillEffectSummary,
   effect: SkillEffect,
-  sourceModule: SkillTreeModuleType
+  sourceModule: SkillTreeModuleType,
+  tier: 'basic' | 'advanced' | 'master'
 ): void {
   const type = effect.type;
   const value = effect.value;
   const targetModule = effect.targetModule || sourceModule;
 
-  if (isGlobalEffect(sourceModule, effect)) {
+  if (tier === 'master') {
     applyGlobalEffect(summary, type, value);
   } else {
     applyModuleEffect(summary, type, value, targetModule);
   }
-}
-
-function isGlobalEffect(module: SkillTreeModuleType, effect: SkillEffect): boolean {
-  const masterNodes: Record<string, string[]> = {
-    mainEngine: ['mainEngine_master_1'],
-    medicalBay: ['medicalBay_master_1'],
-    laboratory: ['laboratory_master_1'],
-    farm: ['farm_master_1'],
-    defense: ['defense_master_1'],
-    communication: ['communication_master_1'],
-  };
-
-  return masterNodes[module]?.includes(`${module}_master_1`) ?? false;
 }
 
 function applyGlobalEffect(
@@ -238,7 +225,7 @@ export function getModuleEfficiencyBonus(
   module: SkillTreeModuleType | string
 ): number {
   const moduleBonus = effects.efficiency[module] || 0;
-  return moduleBonus + effects.globalEfficiency;
+  return Math.min(moduleBonus + effects.globalEfficiency, MAX_SKILL_EFFECT_BONUS);
 }
 
 export function getModuleResistanceBonus(
@@ -246,7 +233,7 @@ export function getModuleResistanceBonus(
   module: SkillTreeModuleType | string
 ): number {
   const moduleBonus = effects.resistance[module] || 0;
-  return moduleBonus + effects.globalResistance;
+  return Math.min(moduleBonus + effects.globalResistance, MAX_SKILL_EFFECT_BONUS);
 }
 
 export function getExpBonus(
@@ -254,7 +241,7 @@ export function getExpBonus(
   module: SkillTreeModuleType | string
 ): number {
   const moduleBonus = effects.expBonus[module] || 0;
-  return moduleBonus + effects.globalExpBonus;
+  return Math.min(moduleBonus + effects.globalExpBonus, MAX_SKILL_EFFECT_BONUS);
 }
 
 export function getFatigueRecoveryBonus(
