@@ -5,6 +5,7 @@ import {
   applyPlayerAction,
   autoAssignCrew,
   updateModuleEfficiencies,
+  updateModuleEfficienciesWithSkills,
   applyBatchPlayerAction,
 } from '../game';
 import type { BatchPlayerAction, BatchActionResult } from '@deep-colony/shared';
@@ -95,7 +96,7 @@ export async function startGame(roomId: string, playerId: string): Promise<GameS
   assignModulesToPlayers(state);
 
   autoAssignCrew(state);
-  updateModuleEfficiencies(state);
+  updateModuleEfficienciesWithSkills(state);
 
   state.phase = 'playing';
   state.turn = 0;
@@ -194,7 +195,7 @@ export async function handlePlayerAction(
     return { success: false, state: null, error: '操作失败' };
   }
 
-  updateModuleEfficiencies(state);
+  updateModuleEfficienciesWithSkills(state);
   await saveGameState(roomId, state);
 
   return { success: true, state };
@@ -207,7 +208,6 @@ export async function advanceTurn(roomId: string): Promise<{ state: GameState | 
   if (state.phase !== 'playing') return { state, shiftResult: { shiftUpdates: [], statusUpdates: [] } };
 
   const shiftResult = processTurn(state);
-  updateModuleEfficiencies(state);
   await saveGameState(roomId, state);
 
   return { state, shiftResult };
@@ -252,7 +252,7 @@ export async function handleBatchPlayerAction(
 
   const result = applyBatchPlayerAction(state, playerId, action);
 
-  updateModuleEfficiencies(state);
+  updateModuleEfficienciesWithSkills(state);
   await saveGameState(roomId, state);
 
   return { success: true, state, result };

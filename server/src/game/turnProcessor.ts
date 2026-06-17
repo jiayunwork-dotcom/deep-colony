@@ -42,6 +42,8 @@ export function processTurn(state: GameState): ShiftProcessingResult {
 
   const shiftResult = processAllShifts(state, skillResult);
 
+  updateModuleEfficiencies(state);
+
   applySkillEfficiencyBonuses(state, skillResult);
 
   if (!checkPowerBalance(state)) {
@@ -75,8 +77,6 @@ export function processTurn(state: GameState): ShiftProcessingResult {
   if (checkVictory(state)) return shiftResult;
   if (checkDefeat(state)) return shiftResult;
 
-  updateModuleEfficiencies(state);
-
   checkAfkPlayers(state);
 
   addLog(state, `=== 第 ${state.turn} 回合结束 ===`, 'info');
@@ -88,6 +88,12 @@ export function updateModuleEfficiencies(state: GameState): void {
   for (const module of Object.values(state.modules)) {
     module.efficiency = calculateModuleEfficiency(module, state.colonists);
   }
+}
+
+export function updateModuleEfficienciesWithSkills(state: GameState): void {
+  updateModuleEfficiencies(state);
+  const skillResult = processSkillEffects(state);
+  applySkillEfficiencyBonuses(state, skillResult);
 }
 
 export function applySkillEfficiencyBonuses(

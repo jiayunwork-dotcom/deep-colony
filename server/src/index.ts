@@ -13,7 +13,8 @@ import {
   getPlayerRoom,
   handleBatchPlayerAction,
 } from './room/roomManager';
-import type { PlayerAction, BatchPlayerAction, ModuleType, ShipModule } from '@deep-colony/shared';
+import type { PlayerAction, BatchPlayerAction, ModuleType, ShipModule, SkillTreeModuleType } from '@deep-colony/shared';
+import { SKILL_TREE_MODULE_NAMES } from '@deep-colony/shared';
 
 const PORT = parseInt(process.env.PORT || '3001');
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
@@ -137,6 +138,24 @@ fastify.post('/api/rooms/:roomId/action', async (request, reply) => {
     state: result.state,
   });
 
+  if (action.type === 'unlockSkillNode' && action.colonistId && action.skillModule && action.skillNodeId) {
+    const colonist = result.state?.colonists[action.colonistId];
+    if (colonist) {
+      const tree = colonist.skillTree.trees[action.skillModule as SkillTreeModuleType];
+      const node = tree?.nodes[action.skillNodeId];
+      if (node && node.unlocked) {
+        broadcastToRoom(roomId.toUpperCase(), {
+          type: 'skillUnlocked',
+          colonistId: action.colonistId,
+          colonistName: colonist.name,
+          module: action.skillModule,
+          nodeId: action.skillNodeId,
+          nodeName: node.name,
+        });
+      }
+    }
+  }
+
   return { success: true, state: result.state };
 });
 
@@ -249,9 +268,9 @@ fastify.register(async (fastify) => {
               if (data.action.type === 'unlockSkillNode' && data.action.colonistId && data.action.skillModule && data.action.skillNodeId) {
                 const colonist = result.state.colonists[data.action.colonistId];
                 if (colonist) {
-                  const tree = colonist.skillTree.trees[data.action.skillModule as keyof typeof colonist.skillTree.trees];
+                  const tree = colonist.skillTree.trees[data.action.skillModule as SkillTreeModuleType];
                   const node = tree?.nodes[data.action.skillNodeId];
-                  if (node) {
+                  if (node && node.unlocked) {
                     broadcastToRoom(upperRoomId, {
                       type: 'skillUnlocked',
                       colonistId: data.action.colonistId,

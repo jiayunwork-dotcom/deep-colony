@@ -61,10 +61,7 @@ function calculateExpGain(
   const skillModule = module.id as SkillTreeModuleType;
   if (!SKILL_TREE_MODULES.includes(skillModule)) return 0;
 
-  const { calculateModuleEfficiency } = require('./state');
-  const efficiency = calculateModuleEfficiency(module, { [colonist.id]: colonist });
-
-  let exp = BASE_EXP_PER_TURN * efficiency;
+  let exp = BASE_EXP_PER_TURN * module.efficiency;
 
   const shiftMode = module.shiftConfig.mode;
   if (shiftMode === 'threeShift') {
@@ -85,7 +82,7 @@ function calculateExpGain(
     }
   }
 
-  return Math.round(exp);
+  return Math.max(1, Math.round(exp));
 }
 
 function processModuleShifts(
